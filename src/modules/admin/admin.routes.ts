@@ -63,4 +63,28 @@ router.get(
   })
 );
 
+router.get(
+  "/fridges",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listFridges());
+  })
+);
+
+router.get(
+  "/products",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listProducts());
+  })
+);
+
+router.get(
+  "/batches",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listBatches());
+  })
+);
+
 export default router;

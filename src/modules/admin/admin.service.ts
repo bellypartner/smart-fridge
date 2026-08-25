@@ -69,3 +69,18 @@ export const listFridgeStock = (fridgeId: string) => {
     include: { batch: { include: { product: true } } },
   });
 };
+
+export const listFridges = () => {
+  return prisma.fridge.findMany({ orderBy: { createdAt: "desc" } });
+};
+
+export const listProducts = () => {
+  return prisma.product.findMany({ orderBy: { createdAt: "desc" } });
+};
+
+export const listBatches = () => {
+  return prisma.batch.findMany({
+    include: { product: true },
+    orderBy: { createdAt: "desc" },
+  });
+};

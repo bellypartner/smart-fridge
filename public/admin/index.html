@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Salad Caffe — Smart Fridge Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #1B5E20;
+    --secondary: #43A047;
+    --accent: #8BC34A;
+    --cta: #FF7A00;
+    --heading: #1F2937;
+    --body: #4B5563;
+    --bg: #FAFAF7;
+    --white: #FFFFFF;
+    --danger: #C0392B;
+    --border: #E5E1D8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    color: var(--body);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .brand { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--heading); }
+
+  /* ── Login / bootstrap screen ── */
+  #authScreen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(160deg, var(--primary) 0%, var(--secondary) 55%, var(--accent) 100%);
+    padding: 24px;
+  }
+  .auth-card {
+    background: var(--white);
+    border-radius: 20px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 24px 60px rgba(27, 94, 32, 0.25);
+  }
+  .brand-mark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .brand-mark .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--cta);
+  }
+  .brand { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .auth-sub { font-size: 13px; color: var(--body); margin: 4px 0 28px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--heading); margin: 14px 0 6px; }
+  input, select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    color: var(--heading);
+    background: var(--white);
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus, select:focus { border-color: var(--secondary); }
+  button {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: filter .15s, transform .1s;
+  }
+  button:active { transform: scale(0.98); }
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    color: var(--white);
+    margin-top: 22px;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-cta { background: var(--cta); color: var(--white); padding: 10px 16px; }
+  .btn-cta:hover { filter: brightness(1.08); }
+  .btn-ghost { background: transparent; color: var(--secondary); padding: 8px 0; text-decoration: underline; font-size: 13px; }
+  .toggle-link { text-align: center; margin-top: 18px; }
+  .hidden { display: none !important; }
+  .error-msg {
+    background: #FDEDEC; color: var(--danger); border: 1px solid #F5B7B1;
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 14px;
+  }
+  .success-msg {
+    background: #EAF6EB; color: var(--primary); border: 1px solid #B7E0BA;
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 14px;
+  }
+
+  /* ── Dashboard shell ── */
+  #dashScreen { display: none; min-height: 100vh; }
+  #dashScreen.active { display: flex; }
+  .sidebar {
+    width: 220px;
+    background: var(--primary);
+    color: rgba(255,255,255,0.85);
+    display: flex;
+    flex-direction: column;
+    padding: 24px 0;
+    flex-shrink: 0;
+  }
+  .sidebar .brand { color: var(--white); font-size: 17px; padding: 0 24px 4px; }
+  .sidebar .brand-sub { color: rgba(255,255,255,0.6); font-size: 11px; padding: 0 24px; margin-bottom: 28px; }
+  .nav-item {
+    padding: 12px 24px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+    transition: background .12s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.06); }
+  .nav-item.active { background: rgba(255,255,255,0.12); border-left-color: var(--cta); color: var(--white); }
+  .sidebar-footer { margin-top: auto; padding: 16px 24px 0; border-top: 1px solid rgba(255,255,255,0.15); }
+  .who { font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+  .who b { color: var(--white); }
+  .logout-link { color: rgba(255,255,255,0.85); font-size: 13px; cursor: pointer; text-decoration: underline; }
+
+  .main { flex: 1; padding: 36px 44px; overflow-y: auto; }
+  .main h1 { font-size: 24px; margin: 0 0 6px; }
+  .main .page-sub { font-size: 13px; color: var(--body); margin-bottom: 28px; }
+
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .card h3 { font-size: 14px; margin: 0 0 16px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--secondary); }
+  .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--body); padding: 10px 12px; border-bottom: 1.5px solid var(--border); }
+  td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--heading); }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-active { background: #EAF6EB; color: var(--primary); }
+  .badge-inactive { background: #F4F1EA; color: var(--body); }
+  .empty-row td { text-align: center; color: var(--body); padding: 28px; font-style: italic; }
+
+  .stock-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); width: 120px; }
+  .stock-bar .seg-avail { background: var(--accent); }
+  .stock-bar .seg-held { background: var(--cta); }
+  .stock-legend { font-size: 11px; color: var(--body); margin-top: 4px; }
+
+  .field-note { font-size: 11px; color: var(--body); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ AUTH SCREEN ═══════════════ -->
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="brand-mark"><span class="dot"></span><span class="brand">Salad Caffe</span></div>
+    <div class="auth-sub" id="authSubtitle">Smart Fridge — staff sign in</div>
+
+    <div id="loginForm">
+      <label for="loginPhone">Phone number</label>
+      <input id="loginPhone" type="tel" placeholder="98765 43210" maxlength="10" />
+      <label for="loginPassword">Password</label>
+      <input id="loginPassword" type="password" placeholder="••••••••" />
+      <button class="btn-primary" onclick="doLogin()">Log in</button>
+      <div class="toggle-link"><span class="btn-ghost" onclick="showBootstrap()">First time setup — create the admin account</span></div>
+    </div>
+
+    <div id="bootstrapForm" class="hidden">
+      <label for="bsName">Your name</label>
+      <input id="bsName" type="text" placeholder="Syam" />
+      <label for="bsPhone">Phone number</label>
+      <input id="bsPhone" type="tel" placeholder="98765 43210" maxlength="10" />
+      <label for="bsPassword">Choose a password</label>
+      <input id="bsPassword" type="password" placeholder="At least 8 characters" />
+      <label for="bsSecret">Bootstrap secret</label>
+      <input id="bsSecret" type="password" placeholder="ADMIN_BOOTSTRAP_SECRET from Railway" />
+      <div class="field-note">This is the ADMIN_BOOTSTRAP_SECRET env var you set in Railway. It only works once — the moment the first admin exists, this form stops working.</div>
+      <button class="btn-primary" onclick="doBootstrap()">Create admin account</button>
+      <div class="toggle-link"><span class="btn-ghost" onclick="showLogin()">← Back to login</span></div>
+    </div>
+
+    <div id="authMsg"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div id="dashScreen">
+  <div class="sidebar">
+    <div class="brand">Salad Caffe</div>
+    <div class="brand-sub">Smart Fridge Admin</div>
+
+    <div class="nav-item active" data-tab="fridges" onclick="switchTab('fridges')">Fridges</div>
+    <div class="nav-item" data-tab="products" onclick="switchTab('products')">Products</div>
+    <div class="nav-item" data-tab="batches" onclick="switchTab('batches')">Batches</div>
+    <div class="nav-item" data-tab="stock" onclick="switchTab('stock')">Stock</div>
+    <div class="nav-item hidden" id="staffNavItem" data-tab="staff" onclick="switchTab('staff')">Staff</div>
+
+    <div class="sidebar-footer">
+      <div class="who">Signed in as<br /><b id="whoName">—</b> <span id="whoRole"></span></div>
+      <span class="logout-link" onclick="doLogout()">Log out</span>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- FRIDGES -->
+    <div class="tab-panel" id="tab-fridges">
+      <h1>Fridges</h1>
+      <div class="page-sub">Each fridge is one physical chiller — the code you set here is what goes on its printed QR sticker.</div>
+      <div class="grid">
+        <div class="card">
+          <h3>New fridge</h3>
+          <label>Fridge code</label>
+          <input id="fridgeCode" placeholder="FRIDGE-TECHNOPARK-001" />
+          <label>Name</label>
+          <input id="fridgeName" placeholder="Technopark Campus 1 — Ground Floor" />
+          <label>Location</label>
+          <input id="fridgeLocation" placeholder="Trivandrum" />
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createFridge()">Create fridge</button>
+        </div>
+        <div class="card">
+          <h3>All fridges</h3>
+          <table>
+            <thead><tr><th>Code</th><th>Name</th><th>Location</th><th>Status</th></tr></thead>
+            <tbody id="fridgesTable"><tr class="empty-row"><td colspan="4">No fridges yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div class="tab-panel hidden" id="tab-products">
+      <h1>Products</h1>
+      <div class="page-sub">The master menu item — nutrition, pricing, and shelf life. You'll create a batch of this whenever kitchen makes a fresh run.</div>
+      <div class="grid">
+        <div class="card">
+          <h3>New product</h3>
+          <label>SKU</label>
+          <input id="prodSku" placeholder="SC-PANEER-BOWL" />
+          <label>Name</label>
+          <input id="prodName" placeholder="Grilled Paneer Power Bowl" />
+          <label>Category</label>
+          <input id="prodCategory" placeholder="Bowls" />
+          <div class="form-row-2">
+            <div><label>MRP (₹)</label><input id="prodMrp" type="number" placeholder="220" /></div>
+            <div><label>Selling price (₹)</label><input id="prodPrice" type="number" placeholder="199" /></div>
+          </div>
+          <div class="form-row-2">
+            <div><label>GST %</label><input id="prodGst" type="number" placeholder="5" /></div>
+            <div><label>Shelf life (hours)</label><input id="prodShelf" type="number" placeholder="24" /></div>
+          </div>
+          <label>Description</label>
+          <input id="prodDesc" placeholder="Grilled paneer, quinoa, roasted vegetables" />
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createProduct()">Create product</button>
+        </div>
+        <div class="card">
+          <h3>All products</h3>
+          <table>
+            <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Shelf life</th></tr></thead>
+            <tbody id="productsTable"><tr class="empty-row"><td colspan="4">No products yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- BATCHES -->
+    <div class="tab-panel hidden" id="tab-batches">
+      <h1>Batches</h1>
+      <div class="page-sub">The batch code is exactly what gets printed on the QR sheet — one sheet per batch, customers scan it per item taken.</div>
+      <div class="grid">
+        <div class="card">
+          <h3>New batch</h3>
+          <label>Batch code</label>
+          <input id="batchCode" placeholder="SC-PANEER-BOWL-B240804" />
+          <label>Product</label>
+          <select id="batchProduct"><option value="">Select a product…</option></select>
+          <label>Manufactured at</label>
+          <input id="batchMfg" type="datetime-local" />
+          <label>Expires at</label>
+          <input id="batchExp" type="datetime-local" />
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createBatch()">Create batch</button>
+        </div>
+        <div class="card">
+          <h3>All batches</h3>
+          <table>
+            <thead><tr><th>Batch code</th><th>Product</th><th>Expires</th><th>Status</th></tr></thead>
+            <tbody id="batchesTable"><tr class="empty-row"><td colspan="4">No batches yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div class="tab-panel hidden" id="tab-stock">
+      <h1>Stock</h1>
+      <div class="page-sub">Allocate batch stock to a fridge — this is what makes an item scannable there. Do this every time a fridge is restocked.</div>
+      <div class="grid">
+        <div class="card">
+          <h3>Allocate stock</h3>
+          <label>Fridge</label>
+          <select id="stockFridge" onchange="loadFridgeStock()"><option value="">Select a fridge…</option></select>
+          <label>Batch</label>
+          <select id="stockBatch"><option value="">Select a batch…</option></select>
+          <label>Quantity</label>
+          <input id="stockQty" type="number" placeholder="20" />
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="allocateStock()">Add stock</button>
+        </div>
+        <div class="card">
+          <h3>Current stock at selected fridge</h3>
+          <table>
+            <thead><tr><th>Product</th><th>Batch</th><th>Levels</th><th>Sold</th></tr></thead>
+            <tbody id="stockTable"><tr class="empty-row"><td colspan="4">Select a fridge above</td></tr></tbody>
+          </table>
+          <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STAFF -->
+    <div class="tab-panel hidden" id="tab-staff">
+      <h1>Staff</h1>
+      <div class="page-sub">Create login access for kitchen or admin team members.</div>
+      <div class="grid">
+        <div class="card">
+          <h3>New staff account</h3>
+          <label>Name</label>
+          <input id="staffName" placeholder="Full name" />
+          <label>Phone number</label>
+          <input id="staffPhone" type="tel" placeholder="98765 43210" maxlength="10" />
+          <label>Password</label>
+          <input id="staffPassword" type="password" placeholder="At least 8 characters" />
+          <label>Role</label>
+          <select id="staffRole">
+            <option value="KITCHEN">Kitchen — can create batches, manage stock</option>
+            <option value="ADMIN">Admin — full access</option>
+          </select>
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createStaff()">Create account</button>
+        </div>
+        <div class="card">
+          <h3>Created this session</h3>
+          <table>
+            <thead><tr><th>Name</th><th>Phone</th><th>Role</th></tr></thead>
+            <tbody id="staffTable"><tr class="empty-row"><td colspan="3">Newly created accounts appear here</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const state = { accessToken: null, role: null, name: null };
+
+function api(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (state.accessToken) headers['Authorization'] = 'Bearer ' + state.accessToken;
+  return fetch('/api' + path, Object.assign({}, opts, { headers }))
+    .then(async (res) => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body.error && body.error.message) || 'Request failed');
+      return body;
+    });
+}
+
+function showMsg(text, kind) {
+  const el = document.getElementById('authMsg');
+  el.innerHTML = '<div class="' + (kind === 'error' ? 'error-msg' : 'success-msg') + '">' + text + '</div>';
+}
+function clearMsg() { document.getElementById('authMsg').innerHTML = ''; }
+
+function showBootstrap() {
+  document.getElementById('loginForm').classList.add('hidden');
+  document.getElementById('bootstrapForm').classList.remove('hidden');
+  document.getElementById('authSubtitle').textContent = 'One-time — create the first admin account';
+  clearMsg();
+}
+function showLogin() {
+  document.getElementById('bootstrapForm').classList.add('hidden');
+  document.getElementById('loginForm').classList.remove('hidden');
+  document.getElementById('authSubtitle').textContent = 'Smart Fridge — staff sign in';
+  clearMsg();
+}
+
+function doLogin() {
+  const phone = document.getElementById('loginPhone').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  clearMsg();
+  api('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) })
+    .then(onAuthSuccess)
+    .catch((e) => showMsg(e.message, 'error'));
+}
+
+function doBootstrap() {
+  const name = document.getElementById('bsName').value.trim();
+  const phone = document.getElementById('bsPhone').value.trim();
+  const password = document.getElementById('bsPassword').value;
+  const secret = document.getElementById('bsSecret').value;
+  clearMsg();
+  api('/auth/bootstrap-admin', { method: 'POST', body: JSON.stringify({ name, phone, password, secret }) })
+    .then(onAuthSuccess)
+    .catch((e) => showMsg(e.message, 'error'));
+}
+
+function onAuthSuccess(tokens) {
+  state.accessToken = tokens.accessToken;
+  state.role = tokens.role;
+  sessionStorage.setItem('sf_access', tokens.accessToken);
+  sessionStorage.setItem('sf_role', tokens.role);
+  enterDashboard();
+}
+
+function enterDashboard() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('dashScreen').classList.add('active');
+  document.getElementById('whoRole').textContent = '(' + state.role + ')';
+  document.getElementById('whoName').textContent = state.role === 'ADMIN' ? 'Admin' : 'Kitchen staff';
+  if (state.role === 'ADMIN') document.getElementById('staffNavItem').classList.remove('hidden');
+  refreshAll();
+}
+
+function doLogout() {
+  sessionStorage.removeItem('sf_access');
+  sessionStorage.removeItem('sf_role');
+  location.reload();
+}
+
+// Restore session on page load
+(function restoreSession() {
+  const token = sessionStorage.getItem('sf_access');
+  const role = sessionStorage.getItem('sf_role');
+  if (token && role) {
+    state.accessToken = token;
+    state.role = role;
+    enterDashboard();
+  }
+})();
+
+function switchTab(tab) {
+  document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach((el) => el.classList.toggle('hidden', el.id !== 'tab-' + tab));
+}
+
+function refreshAll() {
+  loadFridges();
+  loadProducts();
+  loadBatches();
+}
+
+// ── Fridges ──
+function loadFridges() {
+  api('/admin/fridges').then((fridges) => {
+    const tbody = document.getElementById('fridgesTable');
+    tbody.innerHTML = fridges.length ? fridges.map((f) => (
+      '<tr><td>' + f.code + '</td><td>' + f.name + '</td><td>' + (f.location || '—') + '</td>' +
+      '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="4">No fridges yet</td></tr>';
+
+    const sel = document.getElementById('stockFridge');
+    sel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
+  }).catch(() => {});
+}
+
+function createFridge() {
+  const code = document.getElementById('fridgeCode').value.trim();
+  const name = document.getElementById('fridgeName').value.trim();
+  const location = document.getElementById('fridgeLocation').value.trim();
+  if (!code || !name) { alert('Fridge code and name are required'); return; }
+  api('/admin/fridges', { method: 'POST', body: JSON.stringify({ code, name, location: location || undefined }) })
+    .then(() => {
+      document.getElementById('fridgeCode').value = '';
+      document.getElementById('fridgeName').value = '';
+      document.getElementById('fridgeLocation').value = '';
+      loadFridges();
+    })
+    .catch((e) => alert(e.message));
+}
+
+// ── Products ──
+function loadProducts() {
+  api('/admin/products').then((products) => {
+    const tbody = document.getElementById('productsTable');
+    tbody.innerHTML = products.length ? products.map((p) => (
+      '<tr><td>' + p.sku + '</td><td>' + p.name + '</td><td>₹' + p.sellingPrice + '</td><td>' + p.shelfLifeHours + 'h</td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="4">No products yet</td></tr>';
+
+    const sel = document.getElementById('batchProduct');
+    sel.innerHTML = '<option value="">Select a product…</option>' + products.map((p) => '<option value="' + p.id + '">' + p.sku + ' — ' + p.name + '</option>').join('');
+  }).catch(() => {});
+}
+
+function createProduct() {
+  const body = {
+    sku: document.getElementById('prodSku').value.trim(),
+    name: document.getElementById('prodName').value.trim(),
+    category: document.getElementById('prodCategory').value.trim(),
+    mrp: parseFloat(document.getElementById('prodMrp').value),
+    sellingPrice: parseFloat(document.getElementById('prodPrice').value),
+    gstPercent: parseFloat(document.getElementById('prodGst').value || '0'),
+    shelfLifeHours: parseInt(document.getElementById('prodShelf').value, 10),
+    description: document.getElementById('prodDesc').value.trim() || undefined,
+  };
+  if (!body.sku || !body.name || !body.category || isNaN(body.mrp) || isNaN(body.sellingPrice) || isNaN(body.shelfLifeHours)) {
+    alert('SKU, name, category, MRP, selling price, and shelf life are required'); return;
+  }
+  api('/admin/products', { method: 'POST', body: JSON.stringify(body) })
+    .then(() => {
+      ['prodSku','prodName','prodCategory','prodMrp','prodPrice','prodGst','prodShelf','prodDesc'].forEach((id) => document.getElementById(id).value = '');
+      loadProducts();
+    })
+    .catch((e) => alert(e.message));
+}
+
+// ── Batches ──
+function loadBatches() {
+  api('/admin/batches').then((batches) => {
+    const tbody = document.getElementById('batchesTable');
+    tbody.innerHTML = batches.length ? batches.map((b) => (
+      '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
+      '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="4">No batches yet</td></tr>';
+
+    const sel = document.getElementById('stockBatch');
+    sel.innerHTML = '<option value="">Select a batch…</option>' + batches.map((b) => '<option value="' + b.id + '">' + b.batchCode + ' (' + b.product.name + ')</option>').join('');
+  }).catch(() => {});
+}
+
+function createBatch() {
+  const body = {
+    batchCode: document.getElementById('batchCode').value.trim(),
+    productId: document.getElementById('batchProduct').value,
+    manufacturedAt: document.getElementById('batchMfg').value ? new Date(document.getElementById('batchMfg').value).toISOString() : '',
+    expiresAt: document.getElementById('batchExp').value ? new Date(document.getElementById('batchExp').value).toISOString() : '',
+  };
+  if (!body.batchCode || !body.productId || !body.manufacturedAt || !body.expiresAt) {
+    alert('All batch fields are required'); return;
+  }
+  api('/admin/batches', { method: 'POST', body: JSON.stringify(body) })
+    .then(() => {
+      document.getElementById('batchCode').value = '';
+      document.getElementById('batchMfg').value = '';
+      document.getElementById('batchExp').value = '';
+      loadBatches();
+    })
+    .catch((e) => alert(e.message));
+}
+
+// ── Stock ──
+function loadFridgeStock() {
+  const fridgeId = document.getElementById('stockFridge').value;
+  const tbody = document.getElementById('stockTable');
+  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Select a fridge above</td></tr>'; return; }
+  api('/admin/fridges/' + fridgeId + '/stock').then((rows) => {
+    tbody.innerHTML = rows.length ? rows.map((r) => {
+      const total = r.quantityAvailable + r.quantityHeld || 1;
+      const availPct = Math.round((r.quantityAvailable / total) * 100);
+      return '<tr><td>' + r.batch.product.name + '</td><td>' + r.batch.batchCode + '</td>' +
+        '<td><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
+        '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></td>' +
+        '<td>' + r.quantitySold + '</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="4">No stock allocated at this fridge yet</td></tr>';
+  }).catch(() => {});
+}
+
+function allocateStock() {
+  const fridgeId = document.getElementById('stockFridge').value;
+  const batchId = document.getElementById('stockBatch').value;
+  const quantity = parseInt(document.getElementById('stockQty').value, 10);
+  if (!fridgeId || !batchId || !quantity) { alert('Fridge, batch, and quantity are required'); return; }
+  api('/admin/fridges/' + fridgeId + '/stock', { method: 'POST', body: JSON.stringify({ batchId, quantity }) })
+    .then(() => {
+      document.getElementById('stockQty').value = '';
+      loadFridgeStock();
+    })
+    .catch((e) => alert(e.message));
+}
+
+// ── Staff ──
+const createdStaff = [];
+function createStaff() {
+  const body = {
+    name: document.getElementById('staffName').value.trim(),
+    phone: document.getElementById('staffPhone').value.trim(),
+    password: document.getElementById('staffPassword').value,
+    role: document.getElementById('staffRole').value,
+  };
+  if (!body.name || !body.phone || !body.password) { alert('Name, phone, and password are required'); return; }
+  api('/auth/staff', { method: 'POST', body: JSON.stringify(body) })
+    .then((staff) => {
+      createdStaff.unshift(staff);
+      const tbody = document.getElementById('staffTable');
+      tbody.innerHTML = createdStaff.map((s) => '<tr><td>' + s.name + '</td><td>' + s.phone + '</td><td>' + s.role + '</td></tr>').join('');
+      document.getElementById('staffName').value = '';
+      document.getElementById('staffPhone').value = '';
+      document.getElementById('staffPassword').value = '';
+    })
+    .catch((e) => alert(e.message));
+}
+</script>
+</body>
+</html>

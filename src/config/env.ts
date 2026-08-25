@@ -16,6 +16,12 @@ const envSchema = z.object({
 
   SESSION_TTL_MINUTES: z.coerce.number().default(20),
 
+  // One-time secret to create the very first ADMIN account via
+  // POST /api/auth/bootstrap-admin. Set this in Railway, use it once, then
+  // you can optionally remove it — the endpoint refuses to run a second
+  // time once any ADMIN exists, regardless of this value.
+  ADMIN_BOOTSTRAP_SECRET: z.string().min(16, "ADMIN_BOOTSTRAP_SECRET must be at least 16 chars"),
+
   RAZORPAY_KEY_ID: z.string().min(1, "RAZORPAY_KEY_ID is required"),
   RAZORPAY_KEY_SECRET: z.string().min(1, "RAZORPAY_KEY_SECRET is required"),
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1, "RAZORPAY_WEBHOOK_SECRET is required"),

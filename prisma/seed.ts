@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+const SEED_ADMIN_PASSWORD = "changeme123"; // dev-only default — change immediately if you ever seed a real environment
 
 async function main() {
   const fridge = await prisma.fridge.upsert({
@@ -50,14 +52,15 @@ async function main() {
     create: { fridgeId: fridge.id, batchId: batch.id, quantityAvailable: 20 },
   });
 
+  const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 10);
   const admin = await prisma.user.upsert({
     where: { phone: "9999999999" },
-    update: {},
-    create: { phone: "9999999999", name: "Syam (Admin)", role: "ADMIN" },
+    update: { passwordHash },
+    create: { phone: "9999999999", name: "Syam (Admin)", role: "ADMIN", passwordHash },
   });
 
   // eslint-disable-next-line no-console
-  console.log("Seeded:", { fridge: fridge.code, product: product.sku, batch: batch.batchCode, admin: admin.phone });
+  console.log("Seeded:", { fridge: fridge.code, product: product.sku, batch: batch.batchCode, admin: admin.phone, adminPassword: SEED_ADMIN_PASSWORD });
 }
 
 main()

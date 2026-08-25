@@ -22,13 +22,14 @@ enum Role {
 // Staff accounts only now (ADMIN / KITCHEN). Customers don't log in —
 // they're identified by name + phone captured at checkout, not a verified account.
 model User {
-  id          String   @id @default(cuid())
-  phone       String   @unique
-  name        String?
-  role        Role     @default(KITCHEN)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  name         String?
+  passwordHash String?  // staff log in with phone + password now — OTP endpoints remain but are unused until SMS is wired up
+  role         Role     @default(KITCHEN)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   refreshTokens RefreshToken[]
 

@@ -29,3 +29,36 @@ export const refreshSchema = z.object({
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
+
+const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
+
+export const loginSchema = z.object({
+  body: z.object({
+    phone: phoneSchema,
+    password: z.string().min(1, "Password is required"),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const bootstrapAdminSchema = z.object({
+  body: z.object({
+    phone: phoneSchema,
+    password: passwordSchema,
+    name: z.string().min(1).max(80),
+    secret: z.string().min(1, "secret is required"),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const createStaffSchema = z.object({
+  body: z.object({
+    phone: phoneSchema,
+    password: passwordSchema,
+    name: z.string().min(1).max(80),
+    role: z.enum(["ADMIN", "KITCHEN"]),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});

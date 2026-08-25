@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { ApiError } from "../../utils/apiError";
 import { compareOtp, generateOtp, hashOtp, hashToken } from "../../utils/otp";
+import { comparePassword, hashPassword } from "../../utils/password";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt";
 
 // ── SMS provider ────────────────────────────────────────────────
@@ -131,4 +132,74 @@ export const logout = async (refreshToken: string) => {
     where: { tokenHash, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+};
+
+// ── Password login — the primary staff login path now that SMS isn't wired up ─
+export const login = async (phone: string, password: string) => {
+  const user = await prisma.user.findUnique({ where: { phone } });
+
+  if (!user || !user.passwordHash) {
+    throw ApiError.unauthorized("Incorrect phone number or password", "LOGIN_FAILED");
+  }
+  if (!user.isActive) {
+    throw ApiError.forbidden("This account has been disabled");
+  }
+
+  const isValid = await comparePassword(password, user.passwordHash);
+  if (!isValid) {
+    throw ApiError.unauthorized("Incorrect phone number or password", "LOGIN_FAILED");
+  }
+
+  return issueTokens(user.id, user.phone, user.role);
+};
+
+// ── One-time bootstrap: create the very first ADMIN account ────
+// Gated by ADMIN_BOOTSTRAP_SECRET (env var) AND refuses to run at all once
+// any ADMIN already exists — so leaving the secret set afterward is safe.
+export const bootstrapAdmin = async (
+  phone: string,
+  password: string,
+  name: string,
+  secret: string
+) => {
+  if (secret !== env.ADMIN_BOOTSTRAP_SECRET) {
+    throw ApiError.forbidden("Invalid bootstrap secret", "INVALID_BOOTSTRAP_SECRET");
+  }
+
+  const existingAdmin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
+  if (existingAdmin) {
+    throw ApiError.conflict(
+      "An admin account already exists. Use the regular login instead.",
+      "ADMIN_ALREADY_EXISTS"
+    );
+  }
+
+  const passwordHash = await hashPassword(password);
+  const user = await prisma.user.upsert({
+    where: { phone },
+    update: { passwordHash, name, role: "ADMIN" },
+    create: { phone, passwordHash, name, role: "ADMIN" },
+  });
+
+  return issueTokens(user.id, user.phone, user.role);
+};
+
+// ── Admin creates additional staff accounts (KITCHEN or ADMIN) ──
+export const createStaff = async (
+  phone: string,
+  password: string,
+  name: string,
+  role: "ADMIN" | "KITCHEN"
+) => {
+  const existing = await prisma.user.findUnique({ where: { phone } });
+  if (existing) {
+    throw ApiError.conflict("An account with this phone number already exists", "USER_EXISTS");
+  }
+
+  const passwordHash = await hashPassword(password);
+  const user = await prisma.user.create({
+    data: { phone, passwordHash, name, role },
+  });
+
+  return { id: user.id, phone: user.phone, name: user.name, role: user.role };
 };

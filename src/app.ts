@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -18,7 +19,11 @@ export const app = express();
 
 app.set("trust proxy", 1); // Railway sits behind a proxy — needed for correct req.ip / rate limiting
 
-app.use(helmet());
+// CSP off: the admin dashboard is a single static file with inline script/style
+// and a Google Fonts import, and this is an internal tool behind login, not a
+// public-facing page — the trade-off is fine here. Helmet's other protections
+// (frame options, etc.) stay on.
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
     origin: env.CORS_ORIGIN === "*" ? true : env.CORS_ORIGIN.split(","),
@@ -36,6 +41,9 @@ app.use(express.json({ limit: "1mb" }));
 app.use(apiLimiter);
 
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+
+// Admin dashboard — plain static HTML/JS, calls the /api routes below itself.
+app.use("/admin", express.static(path.join(process.cwd(), "public/admin")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/fridges", fridgeRoutes);

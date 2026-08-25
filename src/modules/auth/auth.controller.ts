@@ -24,3 +24,21 @@ export const logout = async (req: Request, res: Response) => {
   await authService.logout(refreshToken);
   res.status(200).json({ message: "Logged out" });
 };
+
+export const login = async (req: Request, res: Response) => {
+  const { phone, password } = req.body;
+  const tokens = await authService.login(phone, password);
+  res.status(200).json(tokens);
+};
+
+export const bootstrapAdmin = async (req: Request, res: Response) => {
+  const { phone, password, name, secret } = req.body;
+  const tokens = await authService.bootstrapAdmin(phone, password, name, secret);
+  res.status(201).json(tokens);
+};
+
+export const createStaff = async (req: Request, res: Response) => {
+  const { phone, password, name, role } = req.body;
+  const staff = await authService.createStaff(phone, password, name, role);
+  res.status(201).json(staff);
+};

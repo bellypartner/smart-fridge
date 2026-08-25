@@ -71,22 +71,43 @@ just needs a `fridgeCode` to open a session against (see "assumption" below).
 **Customers: none.** `POST /api/sessions`, `/scan`, `/cart`, and
 `/checkout` have no auth middleware at all.
 
-**Staff (KITCHEN/ADMIN): phone + OTP**, unchanged from before.
-`POST /api/auth/otp/request` → SMS (stubbed to console log in this phase —
-swap `smsProvider` in `auth.service.ts` for MSG91/Twilio). `POST
-/api/auth/otp/verify` returns a short-lived access JWT (15 min) and a
-rotating refresh token (30 days, hashed at rest, single-use). Note: any
-phone number that completes OTP verification is auto-created as a
-`KITCHEN` user on first login — fine for a small trusted pilot team, but
-worth switching to admin-provisioned staff accounts before this is opened
-up more widely.
+**Staff (KITCHEN/ADMIN): phone + password**, not OTP — SMS was never wired
+to a real provider, so OTP had no way to actually reach anyone. The OTP
+endpoints (`/otp/request`, `/otp/verify`) still exist in the code for
+whenever a provider is added, but the login you'll actually use is:
+
+- `POST /api/auth/bootstrap-admin` — **one-time only.** Creates the very
+  first ADMIN account. Requires `ADMIN_BOOTSTRAP_SECRET` (set this in
+  Railway) as a `secret` field in the body, alongside `phone`, `password`,
+  `name`. Refuses to run a second time once any ADMIN exists in the
+  database, regardless of the secret — so it's safe to leave the env var
+  set afterward.
+- `POST /api/auth/login` — `{ phone, password }` → the normal login for
+  everyone after that first admin exists.
+- `POST /api/auth/staff` — ADMIN-only. Lets an admin create more staff
+  accounts (`phone`, `password`, `name`, `role: "ADMIN" | "KITCHEN"`)
+  without touching the database directly.
+
+## Admin dashboard
+
+A plain HTML/JS dashboard is served at **`/admin`** (e.g.
+`https://pos.saladcaffe.com/admin`) — no separate deploy, no build step,
+it's a static file served by the same Express app. First visit: use
+"First time setup" to bootstrap the admin account (needs
+`ADMIN_BOOTSTRAP_SECRET`), then it's a normal phone+password login from
+then on. From there you can create fridges, products, batches, allocate
+stock to a fridge, view current stock levels per fridge, and (as ADMIN)
+create additional staff logins — all without touching curl/Postman.
 
 ## API summary
 
 ```
-POST   /api/auth/otp/request          { phone }                    — staff only
-POST   /api/auth/otp/verify           { phone, code, name? }        — staff only
-POST   /api/auth/refresh              { refreshToken }              — staff only
+POST   /api/auth/bootstrap-admin      { phone, password, name, secret } — one-time only
+POST   /api/auth/login                { phone, password }              — staff
+POST   /api/auth/staff                { phone, password, name, role }  — ADMIN only
+POST   /api/auth/refresh              { refreshToken }                 — staff
+POST   /api/auth/otp/request          { phone }                        — unused until SMS is wired
+POST   /api/auth/otp/verify           { phone, code, name? }           — unused until SMS is wired
 POST   /api/auth/logout               { refreshToken }              — staff only
 
 GET    /api/fridges/:code             resolve fridge from its code — public, no auth
@@ -106,6 +127,9 @@ POST   /api/admin/batches             ADMIN, KITCHEN
 POST   /api/admin/fridges             ADMIN
 POST   /api/admin/fridges/:id/stock   ADMIN, KITCHEN — restock after a service visit
 GET    /api/admin/fridges/:id/stock   ADMIN, KITCHEN
+GET    /api/admin/fridges             ADMIN, KITCHEN — list all fridges
+GET    /api/admin/products            ADMIN, KITCHEN — list all products
+GET    /api/admin/batches             ADMIN, KITCHEN — list all batches
 ```
 
 ## Business rules encoded here
