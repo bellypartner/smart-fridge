@@ -1,11 +1,21 @@
 import { z } from "zod";
 
+export const createCategorySchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1).max(60),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 export const createProductSchema = z.object({
   body: z.object({
     sku: z.string().min(1),
     name: z.string().min(1),
-    category: z.string().min(1),
-    imageUrl: z.string().url().optional(),
+    categoryId: z.string().min(1),
+    // A base64 data URI from the dashboard's file input, not an external link —
+    // kept as a loose string rather than z.string().url() for that reason.
+    imageUrl: z.string().min(1).optional(),
     calories: z.number().int().optional(),
     proteinG: z.number().optional(),
     carbsG: z.number().optional(),
@@ -20,12 +30,16 @@ export const createProductSchema = z.object({
   query: z.object({}).optional(),
 });
 
+// batchCode and expiresAt are no longer supplied by the admin — the server
+// derives both (code from fridge+product+date, expiry from the product's
+// shelf life) so the format is consistent and never mistyped. Creating a
+// batch also allocates its initial stock to the chosen fridge in one step.
 export const createBatchSchema = z.object({
   body: z.object({
-    batchCode: z.string().min(1),
     productId: z.string().min(1),
+    fridgeId: z.string().min(1),
     manufacturedAt: z.string().datetime(),
-    expiresAt: z.string().datetime(),
+    quantity: z.number().int().positive(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),

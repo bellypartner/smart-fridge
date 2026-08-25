@@ -38,7 +38,9 @@ tests/          DB-independent unit tests (otp hashing, ApiError)
 ## Data model — the decisions that shape everything else
 
 **Batch-level QR, not per-instance.** The printed QR encodes a
-`batchCode` (e.g. `SC-PANEER-BOWL-B240804`), shared by every unit in that
+`batchCode`, auto-generated as `SC-<fridge code>-<product code>-<YYMMDD>`
+(e.g. `SC-FRIDGE-TECHNOPARK-001-CHISAL-260804` for "Chicken Salad", made
+Aug 4 2026) — see `src/utils/batchCode.ts`. Shared by every unit in that
 batch. You print one sheet per batch, not a unique label per box.
 
 **No customer login.** `ShoppingSession` and `Order` are anonymous —
@@ -95,8 +97,24 @@ A plain HTML/JS dashboard is served at **`/admin`** (e.g.
 it's a static file served by the same Express app. First visit: use
 "First time setup" to bootstrap the admin account (needs
 `ADMIN_BOOTSTRAP_SECRET`), then it's a normal phone+password login from
-then on. From there you can create fridges, products, batches, allocate
-stock to a fridge, view current stock levels per fridge, and (as ADMIN)
+then on. From there:
+
+- **Categories** — create these first; the Product form's category field
+  is a dropdown sourced from here, not free text.
+- **Products** — includes a photo upload. The browser resizes it (long
+  side capped at 800px, JPEG ~80% quality) and stores it as a base64 data
+  URI directly on the product row — no S3 or file storage set up for this
+  phase. Fine at pilot scale; worth moving to real object storage if the
+  catalog grows into the hundreds or images need to be much larger.
+- **Batches** — pick a fridge, product, manufactured date, and quantity.
+  The batch code (`SC-<fridge code>-<product code>-<YYMMDD>`, e.g.
+  `SC-FRIDGE-TECHNOPARK-001-CHISAL-260804` for "Chicken Salad") and expiry
+  (from the product's shelf life) are generated for you — a live preview
+  shows the code before you submit. Creating a batch also allocates its
+  stock to the chosen fridge in the same step, so there's no separate
+  "allocate stock" click for a brand-new batch (that's still there for
+  topping up an *existing* batch at another fridge, or restocking later).
+- **Stock**, and (as ADMIN)
 create additional staff logins — all without touching curl/Postman.
 
 ## API summary
@@ -122,13 +140,15 @@ GET    /api/orders/:id                open lookup by order id (the id is the rec
 
 POST   /api/payments/webhook          Razorpay webhook (payment.captured / payment.failed)
 
+POST   /api/admin/categories          ADMIN — create a category (create these before products)
+GET    /api/admin/categories          ADMIN, KITCHEN
 POST   /api/admin/products            ADMIN
-POST   /api/admin/batches             ADMIN, KITCHEN
+POST   /api/admin/batches             ADMIN, KITCHEN — { productId, fridgeId, manufacturedAt, quantity } — code/expiry auto-derived, stock allocated in the same call
 POST   /api/admin/fridges             ADMIN
 POST   /api/admin/fridges/:id/stock   ADMIN, KITCHEN — restock after a service visit
 GET    /api/admin/fridges/:id/stock   ADMIN, KITCHEN
 GET    /api/admin/fridges             ADMIN, KITCHEN — list all fridges
-GET    /api/admin/products            ADMIN, KITCHEN — list all products
+GET    /api/admin/products            ADMIN, KITCHEN — list all products (includes category + image)
 GET    /api/admin/batches             ADMIN, KITCHEN — list all batches
 ```
 

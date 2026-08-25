@@ -15,13 +15,19 @@ async function main() {
     },
   });
 
+  const category = await prisma.category.upsert({
+    where: { name: "Bowls" },
+    update: {},
+    create: { name: "Bowls" },
+  });
+
   const product = await prisma.product.upsert({
     where: { sku: "SC-PANEER-BOWL" },
     update: {},
     create: {
       sku: "SC-PANEER-BOWL",
       name: "Grilled Paneer Power Bowl",
-      category: "Bowls",
+      categoryId: category.id,
       calories: 420,
       proteinG: 28,
       carbsG: 35,
@@ -36,10 +42,10 @@ async function main() {
 
   const now = new Date();
   const batch = await prisma.batch.upsert({
-    where: { batchCode: "SC-PANEER-BOWL-B240804" },
+    where: { batchCode: "SC-FRIDGE-TECHNOPARK-001-GRIPOW-" + now.toISOString().slice(2, 10).replace(/-/g, "") },
     update: {},
     create: {
-      batchCode: "SC-PANEER-BOWL-B240804",
+      batchCode: "SC-FRIDGE-TECHNOPARK-001-GRIPOW-" + now.toISOString().slice(2, 10).replace(/-/g, ""),
       productId: product.id,
       manufacturedAt: now,
       expiresAt: new Date(now.getTime() + product.shelfLifeHours * 60 * 60 * 1000),

@@ -163,6 +163,20 @@
   .stock-legend { font-size: 11px; color: var(--body); margin-top: 4px; }
 
   .field-note { font-size: 11px; color: var(--body); margin-top: 4px; }
+
+  .img-upload { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .img-preview {
+    width: 64px; height: 64px; border-radius: 10px; object-fit: cover;
+    border: 1.5px dashed var(--border); background: var(--bg); flex-shrink: 0;
+  }
+  .img-preview.empty { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--body); text-align: center; }
+  input[type="file"] { font-size: 12px; padding: 8px 0; border: none; }
+  .thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; vertical-align: middle; background: var(--bg); }
+  .code-preview {
+    margin-top: 12px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; font-family: monospace; font-size: 13px; color: var(--primary); word-break: break-all;
+  }
+  .code-preview .label { display: block; font-family: 'Inter', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--body); margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -207,6 +221,7 @@
     <div class="brand-sub">Smart Fridge Admin</div>
 
     <div class="nav-item active" data-tab="fridges" onclick="switchTab('fridges')">Fridges</div>
+    <div class="nav-item" data-tab="categories" onclick="switchTab('categories')">Categories</div>
     <div class="nav-item" data-tab="products" onclick="switchTab('products')">Products</div>
     <div class="nav-item" data-tab="batches" onclick="switchTab('batches')">Batches</div>
     <div class="nav-item" data-tab="stock" onclick="switchTab('stock')">Stock</div>
@@ -245,6 +260,27 @@
       </div>
     </div>
 
+    <!-- CATEGORIES -->
+    <div class="tab-panel hidden" id="tab-categories">
+      <h1>Categories</h1>
+      <div class="page-sub">Create categories first — products are assigned to one when you create them.</div>
+      <div class="grid">
+        <div class="card">
+          <h3>New category</h3>
+          <label>Name</label>
+          <input id="categoryName" placeholder="Bowls" />
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createCategory()">Create category</button>
+        </div>
+        <div class="card">
+          <h3>All categories</h3>
+          <table>
+            <thead><tr><th>Name</th></tr></thead>
+            <tbody id="categoriesTable"><tr class="empty-row"><td colspan="1">No categories yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- PRODUCTS -->
     <div class="tab-panel hidden" id="tab-products">
       <h1>Products</h1>
@@ -257,7 +293,7 @@
           <label>Name</label>
           <input id="prodName" placeholder="Grilled Paneer Power Bowl" />
           <label>Category</label>
-          <input id="prodCategory" placeholder="Bowls" />
+          <select id="prodCategory"><option value="">Select a category…</option></select>
           <div class="form-row-2">
             <div><label>MRP (₹)</label><input id="prodMrp" type="number" placeholder="220" /></div>
             <div><label>Selling price (₹)</label><input id="prodPrice" type="number" placeholder="199" /></div>
@@ -268,13 +304,19 @@
           </div>
           <label>Description</label>
           <input id="prodDesc" placeholder="Grilled paneer, quinoa, roasted vegetables" />
+          <label>Photo — shown to confirm the item to customers</label>
+          <div class="img-upload">
+            <img id="prodImgPreview" class="img-preview empty" alt="">
+            <input id="prodImgFile" type="file" accept="image/*" onchange="handleProductImage(event)" />
+          </div>
+          <div class="field-note">Resized automatically to keep things fast — no need to pre-crop.</div>
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createProduct()">Create product</button>
         </div>
         <div class="card">
           <h3>All products</h3>
           <table>
-            <thead><tr><th>SKU</th><th>Name</th><th>Price</th><th>Shelf life</th></tr></thead>
-            <tbody id="productsTable"><tr class="empty-row"><td colspan="4">No products yet</td></tr></tbody>
+            <thead><tr><th></th><th>SKU</th><th>Name</th><th>Category</th><th>Price</th></tr></thead>
+            <tbody id="productsTable"><tr class="empty-row"><td colspan="5">No products yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -283,18 +325,19 @@
     <!-- BATCHES -->
     <div class="tab-panel hidden" id="tab-batches">
       <h1>Batches</h1>
-      <div class="page-sub">The batch code is exactly what gets printed on the QR sheet — one sheet per batch, customers scan it per item taken.</div>
+      <div class="page-sub">The batch code is generated for you and is exactly what gets printed on the QR sheet — one sheet per batch, customers scan it per item taken. Creating a batch also loads its stock into the fridge you pick.</div>
       <div class="grid">
         <div class="card">
           <h3>New batch</h3>
-          <label>Batch code</label>
-          <input id="batchCode" placeholder="SC-PANEER-BOWL-B240804" />
+          <label>Fridge</label>
+          <select id="batchFridge" onchange="updateBatchCodePreview()"><option value="">Select a fridge…</option></select>
           <label>Product</label>
-          <select id="batchProduct"><option value="">Select a product…</option></select>
+          <select id="batchProduct" onchange="updateBatchCodePreview()"><option value="">Select a product…</option></select>
           <label>Manufactured at</label>
-          <input id="batchMfg" type="datetime-local" />
-          <label>Expires at</label>
-          <input id="batchExp" type="datetime-local" />
+          <input id="batchMfg" type="datetime-local" onchange="updateBatchCodePreview()" />
+          <label>Quantity going into this fridge</label>
+          <input id="batchQty" type="number" placeholder="20" />
+          <div class="code-preview" id="batchCodePreview"><span class="label">Batch code (auto-generated)</span>—</div>
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createBatch()">Create batch</button>
         </div>
         <div class="card">
@@ -459,6 +502,7 @@ function switchTab(tab) {
 }
 
 function refreshAll() {
+  loadCategories();
   loadFridges();
   loadProducts();
   loadBatches();
@@ -473,8 +517,13 @@ function loadFridges() {
       '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="4">No fridges yet</td></tr>';
 
-    const sel = document.getElementById('stockFridge');
-    sel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
+    const stockSel = document.getElementById('stockFridge');
+    stockSel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
+
+    const batchSel = document.getElementById('batchFridge');
+    const prevBatchFridge = batchSel.value;
+    batchSel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '" data-code="' + f.code + '">' + f.code + ' — ' + f.name + '</option>').join('');
+    batchSel.value = prevBatchFridge;
   }).catch(() => {});
 }
 
@@ -493,16 +542,70 @@ function createFridge() {
     .catch((e) => alert(e.message));
 }
 
+// ── Categories ──
+function loadCategories() {
+  api('/admin/categories').then((categories) => {
+    const tbody = document.getElementById('categoriesTable');
+    tbody.innerHTML = categories.length ? categories.map((c) => '<tr><td>' + c.name + '</td></tr>').join('') : '<tr class="empty-row"><td colspan="1">No categories yet</td></tr>';
+
+    const sel = document.getElementById('prodCategory');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Select a category…</option>' + categories.map((c) => '<option value="' + c.id + '">' + c.name + '</option>').join('');
+    sel.value = prev;
+  }).catch(() => {});
+}
+
+function createCategory() {
+  const name = document.getElementById('categoryName').value.trim();
+  if (!name) { alert('Category name is required'); return; }
+  api('/admin/categories', { method: 'POST', body: JSON.stringify({ name }) })
+    .then(() => {
+      document.getElementById('categoryName').value = '';
+      loadCategories();
+    })
+    .catch((e) => alert(e.message));
+}
+
 // ── Products ──
+let pendingProductImage = null;
+
+function handleProductImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    img.onload = () => {
+      // Resize so uploads stay fast and DB rows stay small — long side capped at 800px.
+      const maxDim = 800;
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      pendingProductImage = canvas.toDataURL('image/jpeg', 0.82);
+      const preview = document.getElementById('prodImgPreview');
+      preview.src = pendingProductImage;
+      preview.classList.remove('empty');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function loadProducts() {
   api('/admin/products').then((products) => {
     const tbody = document.getElementById('productsTable');
     tbody.innerHTML = products.length ? products.map((p) => (
-      '<tr><td>' + p.sku + '</td><td>' + p.name + '</td><td>₹' + p.sellingPrice + '</td><td>' + p.shelfLifeHours + 'h</td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="4">No products yet</td></tr>';
+      '<tr><td>' + (p.imageUrl ? '<img class="thumb" src="' + p.imageUrl + '">' : '') + '</td>' +
+      '<td>' + p.sku + '</td><td>' + p.name + '</td><td>' + (p.category ? p.category.name : '—') + '</td><td>₹' + p.sellingPrice + '</td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="5">No products yet</td></tr>';
 
     const sel = document.getElementById('batchProduct');
-    sel.innerHTML = '<option value="">Select a product…</option>' + products.map((p) => '<option value="' + p.id + '">' + p.sku + ' — ' + p.name + '</option>').join('');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">Select a product…</option>' + products.map((p) => '<option value="' + p.id + '" data-name="' + p.name.replace(/"/g, '&quot;') + '">' + p.sku + ' — ' + p.name + '</option>').join('');
+    sel.value = prev;
   }).catch(() => {});
 }
 
@@ -510,25 +613,64 @@ function createProduct() {
   const body = {
     sku: document.getElementById('prodSku').value.trim(),
     name: document.getElementById('prodName').value.trim(),
-    category: document.getElementById('prodCategory').value.trim(),
+    categoryId: document.getElementById('prodCategory').value,
     mrp: parseFloat(document.getElementById('prodMrp').value),
     sellingPrice: parseFloat(document.getElementById('prodPrice').value),
     gstPercent: parseFloat(document.getElementById('prodGst').value || '0'),
     shelfLifeHours: parseInt(document.getElementById('prodShelf').value, 10),
     description: document.getElementById('prodDesc').value.trim() || undefined,
+    imageUrl: pendingProductImage || undefined,
   };
-  if (!body.sku || !body.name || !body.category || isNaN(body.mrp) || isNaN(body.sellingPrice) || isNaN(body.shelfLifeHours)) {
+  if (!body.sku || !body.name || !body.categoryId || isNaN(body.mrp) || isNaN(body.sellingPrice) || isNaN(body.shelfLifeHours)) {
     alert('SKU, name, category, MRP, selling price, and shelf life are required'); return;
   }
   api('/admin/products', { method: 'POST', body: JSON.stringify(body) })
     .then(() => {
-      ['prodSku','prodName','prodCategory','prodMrp','prodPrice','prodGst','prodShelf','prodDesc'].forEach((id) => document.getElementById(id).value = '');
+      ['prodSku','prodName','prodMrp','prodPrice','prodGst','prodShelf','prodDesc'].forEach((id) => document.getElementById(id).value = '');
+      document.getElementById('prodCategory').value = '';
+      document.getElementById('prodImgFile').value = '';
+      const preview = document.getElementById('prodImgPreview');
+      preview.src = ''; preview.classList.add('empty');
+      pendingProductImage = null;
       loadProducts();
     })
     .catch((e) => alert(e.message));
 }
 
 // ── Batches ──
+// Mirrors src/utils/batchCode.ts exactly — for live preview only, the
+// server always recomputes and owns the real value.
+function previewProductCode(name) {
+  const words = name.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 'XXXXXX';
+  if (words.length === 1) return words[0].slice(0, 6).padEnd(6, 'X');
+  return words[0].slice(0, 3).padEnd(3, 'X') + words[1].slice(0, 3).padEnd(3, 'X');
+}
+function previewDateCode(date) {
+  const yy = String(date.getFullYear()).slice(-2);
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return yy + mm + dd;
+}
+
+function updateBatchCodePreview() {
+  const fridgeSel = document.getElementById('batchFridge');
+  const productSel = document.getElementById('batchProduct');
+  const mfgInput = document.getElementById('batchMfg').value;
+  const el = document.getElementById('batchCodePreview');
+
+  const fridgeCode = fridgeSel.selectedOptions[0] && fridgeSel.selectedOptions[0].dataset.code;
+  const productName = productSel.selectedOptions[0] && productSel.selectedOptions[0].dataset.name;
+  const date = mfgInput ? new Date(mfgInput) : new Date();
+
+  if (!fridgeCode || !productName) {
+    el.innerHTML = '<span class="label">Batch code (auto-generated)</span>—';
+    return;
+  }
+  const code = 'SC-' + fridgeCode + '-' + previewProductCode(productName) + '-' + previewDateCode(date);
+  el.innerHTML = '<span class="label">Batch code (auto-generated)</span>' + code;
+}
+
 function loadBatches() {
   api('/admin/batches').then((batches) => {
     const tbody = document.getElementById('batchesTable');
@@ -544,20 +686,21 @@ function loadBatches() {
 
 function createBatch() {
   const body = {
-    batchCode: document.getElementById('batchCode').value.trim(),
+    fridgeId: document.getElementById('batchFridge').value,
     productId: document.getElementById('batchProduct').value,
     manufacturedAt: document.getElementById('batchMfg').value ? new Date(document.getElementById('batchMfg').value).toISOString() : '',
-    expiresAt: document.getElementById('batchExp').value ? new Date(document.getElementById('batchExp').value).toISOString() : '',
+    quantity: parseInt(document.getElementById('batchQty').value, 10),
   };
-  if (!body.batchCode || !body.productId || !body.manufacturedAt || !body.expiresAt) {
-    alert('All batch fields are required'); return;
+  if (!body.fridgeId || !body.productId || !body.manufacturedAt || !body.quantity) {
+    alert('Fridge, product, manufactured date, and quantity are all required'); return;
   }
   api('/admin/batches', { method: 'POST', body: JSON.stringify(body) })
-    .then(() => {
-      document.getElementById('batchCode').value = '';
+    .then((result) => {
       document.getElementById('batchMfg').value = '';
-      document.getElementById('batchExp').value = '';
+      document.getElementById('batchQty').value = '';
+      updateBatchCodePreview();
       loadBatches();
+      alert('Batch created: ' + result.batch.batchCode);
     })
     .catch((e) => alert(e.message));
 }

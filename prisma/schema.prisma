@@ -94,15 +94,24 @@ model Company {
 }
 
 // ─────────────────────────────────────────────
-// Catalog — Product (master) + Batch (what the QR encodes)
+// Catalog — Category, Product (master), Batch (what the QR encodes)
 // ─────────────────────────────────────────────
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  products  Product[]
+}
 
 model Product {
   id            String   @id @default(cuid())
   sku           String   @unique
   name          String
-  category      String
-  imageUrl      String?
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  imageUrl      String?  // holds a base64 data URI — see admin.service.ts createProduct
   calories      Int?
   proteinG      Float?
   carbsG        Float?
@@ -119,6 +128,7 @@ model Product {
   batches       Batch[]
 
   @@index([sku])
+  @@index([categoryId])
 }
 
 enum BatchStatus {
@@ -129,11 +139,11 @@ enum BatchStatus {
 
 model Batch {
   id             String      @id @default(cuid())
-  batchCode      String      @unique // e.g. SC-PANEER-BOWL-B240804 — this is what the printed QR encodes
+  batchCode      String      @unique // auto-generated: SC-<fridge code>-<product code>-<YYMMDD> — see admin.service.ts
   productId      String
   product        Product     @relation(fields: [productId], references: [id])
   manufacturedAt DateTime
-  expiresAt      DateTime
+  expiresAt      DateTime    // auto-computed from manufacturedAt + Product.shelfLifeHours
   status         BatchStatus @default(ACTIVE)
   createdAt      DateTime    @default(now())
 

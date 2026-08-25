@@ -37,7 +37,7 @@ app.use(cookieParser());
 // mount it BEFORE express.json() so the body is never re-serialized.
 app.use("/api/payments", express.raw({ type: "application/json" }), paymentRoutes);
 
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "4mb" })); // headroom for base64 product images from the admin dashboard
 app.use(apiLimiter);
 
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));

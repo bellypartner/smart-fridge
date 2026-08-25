@@ -5,6 +5,7 @@ import { validate } from "../../middleware/validate";
 import {
   allocateStockSchema,
   createBatchSchema,
+  createCategorySchema,
   createFridgeSchema,
   createProductSchema,
 } from "./admin.schema";
@@ -13,6 +14,24 @@ import * as adminService from "./admin.service";
 const router = Router();
 
 router.use(requireAuth);
+
+router.post(
+  "/categories",
+  requireRole("ADMIN"),
+  validate(createCategorySchema),
+  asyncHandler(async (req, res) => {
+    const category = await adminService.createCategory(req.body.name);
+    res.status(201).json(category);
+  })
+);
+
+router.get(
+  "/categories",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listCategories());
+  })
+);
 
 router.post(
   "/products",
