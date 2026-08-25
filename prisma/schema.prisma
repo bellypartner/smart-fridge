@@ -1,0 +1,277 @@
+// Salad Caffe Smart Fridge — Phase 1 schema
+// Model: manual scan (no electronic lock), batch-level QR (not per-instance)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Identity
+// ─────────────────────────────────────────────
+
+enum Role {
+  KITCHEN
+  ADMIN
+}
+
+// Staff accounts only now (ADMIN / KITCHEN). Customers don't log in —
+// they're identified by name + phone captured at checkout, not a verified account.
+model User {
+  id          String   @id @default(cuid())
+  phone       String   @unique
+  name        String?
+  role        Role     @default(KITCHEN)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@index([phone])
+}
+
+model OtpCode {
+  id         String   @id @default(cuid())
+  phone      String
+  codeHash   String   // never store OTP in plaintext
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// Fridges
+// ─────────────────────────────────────────────
+
+model Fridge {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g. FRIDGE-TECHNOPARK-001, printed as the fridge QR
+  name        String
+  location    String?
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id])
+  isActive    Boolean  @default(true)
+  lastServicedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stocks      FridgeStock[]
+  sessions    ShoppingSession[]
+  orders      Order[]
+
+  @@index([code])
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  billingEmail String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  fridges   Fridge[]
+}
+
+// ─────────────────────────────────────────────
+// Catalog — Product (master) + Batch (what the QR encodes)
+// ─────────────────────────────────────────────
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  name          String
+  category      String
+  imageUrl      String?
+  calories      Int?
+  proteinG      Float?
+  carbsG        Float?
+  fatG          Float?
+  description   String?
+  mrp           Decimal  @db.Decimal(10, 2)
+  sellingPrice  Decimal  @db.Decimal(10, 2)
+  gstPercent    Decimal  @db.Decimal(5, 2) @default(0)
+  shelfLifeHours Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  batches       Batch[]
+
+  @@index([sku])
+}
+
+enum BatchStatus {
+  ACTIVE
+  EXPIRED
+  RECALLED
+}
+
+model Batch {
+  id             String      @id @default(cuid())
+  batchCode      String      @unique // e.g. SC-PANEER-BOWL-B240804 — this is what the printed QR encodes
+  productId      String
+  product        Product     @relation(fields: [productId], references: [id])
+  manufacturedAt DateTime
+  expiresAt      DateTime
+  status         BatchStatus @default(ACTIVE)
+  createdAt      DateTime    @default(now())
+
+  stocks         FridgeStock[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+
+  @@index([batchCode])
+  @@index([productId])
+}
+
+// Stock of a given batch sitting in a given fridge right now.
+// quantityAvailable = physically in the fridge and not yet held/sold
+// quantityHeld      = currently in an active customer's cart (soft hold, released on expiry)
+// quantitySold      = confirmed paid and taken
+model FridgeStock {
+  id                 String   @id @default(cuid())
+  fridgeId           String
+  fridge             Fridge   @relation(fields: [fridgeId], references: [id])
+  batchId            String
+  batch              Batch    @relation(fields: [batchId], references: [id])
+  quantityAvailable  Int      @default(0)
+  quantityHeld       Int      @default(0)
+  quantitySold       Int      @default(0)
+  updatedAt          DateTime @updatedAt
+
+  @@unique([fridgeId, batchId])
+  @@index([fridgeId])
+}
+
+// ─────────────────────────────────────────────
+// Shopping session — one per fridge visit
+// ─────────────────────────────────────────────
+
+enum SessionStatus {
+  ACTIVE
+  CHECKED_OUT
+  EXPIRED
+  ABANDONED
+}
+
+// Anonymous — no login. Created the moment a customer opens the app for a
+// fridge; the returned id is held client-side (localStorage) as the only
+// "credential" needed to keep scanning into the same cart.
+model ShoppingSession {
+  id         String        @id @default(cuid())
+  fridgeId   String
+  fridge     Fridge        @relation(fields: [fridgeId], references: [id])
+  status     SessionStatus @default(ACTIVE)
+  startedAt  DateTime      @default(now())
+  expiresAt  DateTime      // startedAt + 20 min, extended on each scan
+  closedAt   DateTime?
+
+  cartItems  CartItem[]
+  order      Order?
+
+  @@index([fridgeId, status])
+  @@index([expiresAt])
+}
+
+model CartItem {
+  id         String          @id @default(cuid())
+  sessionId  String
+  session    ShoppingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  batchId    String
+  batch      Batch           @relation(fields: [batchId], references: [id])
+  quantity   Int             @default(1)
+  unitPrice  Decimal         @db.Decimal(10, 2) // snapshot of Product.sellingPrice at scan time
+  gstPercent Decimal         @db.Decimal(5, 2)  // snapshot at scan time
+  addedAt    DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([sessionId, batchId])
+  @@index([sessionId])
+}
+
+// ─────────────────────────────────────────────
+// Orders / payments
+// ─────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  sessionId         String      @unique
+  session           ShoppingSession @relation(fields: [sessionId], references: [id])
+  fridgeId          String
+  fridge            Fridge      @relation(fields: [fridgeId], references: [id])
+  customerName      String      // captured at checkout — no login, so this is the only identity on the order
+  customerPhone     String      // captured at checkout, unverified (no OTP) — used for receipt/contact only
+  status            OrderStatus @default(PENDING)
+  subtotal          Decimal     @db.Decimal(10, 2)
+  gstAmount         Decimal     @db.Decimal(10, 2)
+  totalAmount       Decimal     @db.Decimal(10, 2)
+  razorpayOrderId   String?     @unique
+  razorpayPaymentId String?     @unique
+  createdAt         DateTime    @default(now())
+  paidAt            DateTime?
+
+  items             OrderItem[]
+
+  @@index([customerPhone])
+  @@index([fridgeId])
+  @@index([status])
+}
+
+model OrderItem {
+  id                  String  @id @default(cuid())
+  orderId             String
+  order               Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  batchId             String
+  batch               Batch   @relation(fields: [batchId], references: [id])
+  productNameSnapshot String
+  quantity            Int
+  unitPrice           Decimal @db.Decimal(10, 2)
+  gstPercent          Decimal @db.Decimal(5, 2)
+
+  @@index([orderId])
+}
+
+// ─────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
