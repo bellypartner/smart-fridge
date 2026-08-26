@@ -131,7 +131,10 @@ export const updateBatchStatusSchema = z.object({
 
 export const updateStockSchema = z.object({
   body: z.object({
-    quantityAvailable: z.number().int().min(0),
+    quantityAvailable: z.number().int().min(0).optional(),
+    quantityWasted: z.number().int().min(0).optional(),
+  }).refine((data) => data.quantityAvailable !== undefined || data.quantityWasted !== undefined, {
+    message: "Provide at least one of quantityAvailable or quantityWasted",
   }),
   params: z.object({ fridgeId: z.string().min(1), batchId: z.string().min(1) }),
   query: z.object({}).optional(),

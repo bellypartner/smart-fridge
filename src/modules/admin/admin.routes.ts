@@ -201,7 +201,7 @@ router.patch(
   requireRole("ADMIN", "KITCHEN"),
   validate(updateStockSchema),
   asyncHandler(async (req, res) => {
-    const stock = await adminService.setStockQuantity(req.params.fridgeId, req.params.batchId, req.body.quantityAvailable);
+    const stock = await adminService.setStockQuantity(req.params.fridgeId, req.params.batchId, req.body);
     res.status(200).json(stock);
   })
 );

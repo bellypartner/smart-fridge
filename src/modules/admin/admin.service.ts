@@ -238,16 +238,27 @@ export const listFridgeStock = (fridgeId: string) => {
   });
 };
 
-// Sets the exact available quantity — for correcting a manual stock count
-// (physical count vs. system count), unlike allocateStock() above which
-// only ever adds to whatever's already there. Deliberately does NOT touch
+// Sets exact values — for correcting a manual/physical count against what
+// the system recorded, unlike allocateStock() above which only ever adds
+// to whatever's already there. Deliberately does NOT touch
 // quantityAllocated — this is a correction, not new stock coming in.
-export const setStockQuantity = async (fridgeId: string, batchId: string, quantityAvailable: number) => {
+//
+// quantityWasted is correctable here specifically for close-outs done
+// remotely (e.g. from the office) before anyone has physically counted
+// what's actually left at the fridge. If the real count turns out higher
+// or lower once someone's physically there, fix it here — the number
+// recorded at Close-out time is a best guess, not final, until it's been
+// checked against reality.
+export const setStockQuantity = async (
+  fridgeId: string,
+  batchId: string,
+  data: { quantityAvailable?: number; quantityWasted?: number }
+) => {
   const stock = await prisma.fridgeStock.findUnique({ where: { fridgeId_batchId: { fridgeId, batchId } } });
   if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
   return prisma.fridgeStock.update({
     where: { fridgeId_batchId: { fridgeId, batchId } },
-    data: { quantityAvailable },
+    data,
   });
 };
 

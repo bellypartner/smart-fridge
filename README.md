@@ -38,10 +38,16 @@ tests/          DB-independent unit tests (otp hashing, ApiError)
 ## Data model — the decisions that shape everything else
 
 **Batch-level QR, not per-instance.** The printed QR encodes a
-`batchCode`, auto-generated as `SC-<fridge code>-<product code>-<YYMMDD>`
-(e.g. `SC-FRIDGE-TECHNOPARK-001-CHISAL-260804` for "Chicken Salad", made
-Aug 4 2026) — see `src/utils/batchCode.ts`. Shared by every unit in that
-batch. You print one sheet per batch, not a unique label per box.
+`batchCode`, auto-generated as `<fridge code>-<product code>-<DDMM>`
+(e.g. `FRIDGE-TECHNOPARK-001-CHISAL-0408` for "Chicken Salad", made
+Aug 4) — see `src/utils/batchCode.ts`. No "SC" prefix, and the date is
+day+month only (no year) — a same-day collision across different years
+is vanishingly rare, and the code falls back to a `-2`, `-3`, ... suffix
+automatically if it ever happens. Note: this format changed after the
+first version shipped — batches created before the change keep their
+original `SC-...-YYMMDD` codes; nothing retroactively renames an
+already-printed label. Shared by every unit in that batch. You print one
+sheet per batch, not a unique label per box.
 
 **No customer login.** `ShoppingSession` and `Order` are anonymous —
 there's no `User` behind them. The session id returned by
@@ -107,15 +113,20 @@ then on. From there:
   phase. Fine at pilot scale; worth moving to real object storage if the
   catalog grows into the hundreds or images need to be much larger.
 - **Batches** — pick a fridge, product, manufactured date, and quantity.
-  The batch code (`SC-<fridge code>-<product code>-<YYMMDD>`, e.g.
-  `SC-FRIDGE-TECHNOPARK-001-CHISAL-260804` for "Chicken Salad") and expiry
+  The batch code (`<fridge code>-<product code>-<DDMM>`, e.g.
+  `FRIDGE-TECHNOPARK-001-CHISAL-0408` for "Chicken Salad") and expiry
   (from the product's shelf life) are generated for you — a live preview
   shows the code before you submit. Creating a batch also allocates its
   stock to the chosen fridge in the same step, so there's no separate
   "allocate stock" click for a brand-new batch (that's still there for
-  topping up an *existing* batch at another fridge, or restocking later).
+  topping up an *existing* batch at another fridge, or restocking later
+  — and that dropdown only ever offers `ACTIVE` batches, since restocking
+  something already `EXPIRED`/`RECALLED` doesn't make sense).
   Immediately after creating a batch, its QR modal opens automatically —
-  see below.
+  see below. Selecting a fridge here also checks that fridge for any
+  `ACTIVE` batch still sitting with leftover stock and shows a non-blocking
+  orange reminder to Close it out first — almost always yesterday's
+  batch that never got closed.
 - **QR codes** — every fridge and batch row has a **QR** button. Fridge
   QRs encode a link (`<your domain>/shop?fridge=<code>`) — this is what
   goes on the fridge itself, so scanning it with a phone camera opens the
@@ -175,7 +186,7 @@ PATCH  /api/admin/batches/:id         ADMIN, KITCHEN — { status: ACTIVE|EXPIRE
 DELETE /api/admin/batches/:id         ADMIN, KITCHEN — blocked if it has real order history
 PATCH  /api/admin/fridges/:id         ADMIN — name, location, isActive
 DELETE /api/admin/fridges/:id         ADMIN — blocked if it has stock/sessions/orders
-PATCH  /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — sets exact quantityAvailable
+PATCH  /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — sets exact quantityAvailable and/or quantityWasted (either or both)
 DELETE /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — blocked while quantityHeld > 0
 POST   /api/admin/fridges/:fridgeId/stock/:batchId/close-out   ADMIN, KITCHEN — records leftover as waste, zeroes availability, flips batch to EXPIRED
 GET    /api/admin/customers           ADMIN only — grouped by phone, with spend/frequency
@@ -186,9 +197,17 @@ GET    /api/admin/customers/:phone    ADMIN only — that customer's full order 
 
 - No session-per-user dedupe (there's no user to dedupe on) — every
   `POST /api/sessions` call creates a fresh cart.
-- Session expires after `SESSION_TTL_MINUTES` (default 20) of inactivity;
-  each scan resets the clock. A background sweeper (`session.sweeper.ts`,
-  runs every 60s) reaps stale sessions and releases their stock holds.
+- Session expires after `SESSION_TTL_MINUTES` (default **10**, changed
+  from 20) of inactivity; each scan resets the clock. A background
+  sweeper (`session.sweeper.ts`, runs every 60s) reaps stale sessions
+  and, critically, **releases their held stock back to `quantityAvailable`**
+  — this is the answer to "what happens to an abandoned cart": if someone
+  scans an item and never checks out, that item goes back to being
+  purchasable by someone else after ~10 minutes of inactivity, same as it
+  would if they'd never picked it up. Note: if this was already deployed
+  with `SESSION_TTL_MINUTES` set explicitly in Railway's Variables, that
+  value overrides this code default — update it there too if you want the
+  shorter window live.
 - Checkout is idempotent per session — re-hitting checkout on an already
   `PENDING` order returns the same order instead of creating a duplicate.
   Checkout requires `name` and `phone` in the body (phone validated as a
@@ -293,13 +312,18 @@ between copies), so set your printer/driver's label size to match and
 "Print" sends one label per copy directly.
 
 Layout: item name (bold, large) with manufactured date, weight, and
-expiry stacked below it on the left; a QR code sized to fill most of the
-label's height on the right. Sizing is tuned to use as much of the
-physical label as the content allows (fonts and QR scaled up, margins
-minimized) rather than leaving unused white space, while staying safely
-within a 50×25mm boundary. Verified end-to-end during development:
-rendered at true size, decoded back with a QR reader, confirmed to
-match the source string exactly.
+expiry stacked below it on the left; a QR code on the right; and a
+**readable text strip along the bottom printing the batch code itself**
+(not just encoded in the QR). This matters operationally: if a scan ever
+fails — camera trouble, a damaged or smudged label — there's still a
+human-readable code that can be typed into the shop app's "Can't scan?
+Enter the code" fallback, so a failed scan never means the item is
+simply unbuyable. Sizing is tuned to use as much of the physical label
+as the content allows (fonts and QR scaled up, margins minimized)
+without crowding out that fallback text. Verified end-to-end during
+development: rendered at true size, decoded back with a QR reader,
+confirmed to match the source string exactly — including with a long
+fridge code, to make sure the bottom strip never wraps awkwardly.
 
 Add a product's **Weight (g)** in the Products tab to have it appear on
 the label; leave it blank to omit that line. Expiry isn't a separate
@@ -308,8 +332,8 @@ computed automatically and shown in the Batches table's Expires column
 (see "Auto-generated batch codes" above).
 
 Fridge QR labels use a simpler version of the same template (just the
-fridge name and a larger QR, no expiry/weight lines) at the same
-physical size, since a fridge sticker is printed once, not per batch.
+fridge name, a larger QR, and the fridge code as the bottom strip) at the
+same physical size, since a fridge sticker is printed once, not per batch.
 
 ## Perishable stock — daily close-out and waste tracking
 
@@ -339,6 +363,23 @@ for that batch — since a batch is inherently one day's production (the
 date is baked into its code), this *is* the daily made/sold/wasted view,
 no separate "daily" tab needed. Daily revenue is still the Sales tab's
 "Today" stat cards, which need no manual step.
+
+**Remote close-out vs. physical count.** If Close-out happens from the
+office — before anyone's physically at the fridge to count what's
+actually left — the recorded waste is only as good as the system's
+`quantityAvailable` at that moment, which can be off from reality by the
+time someone's there in person (a scan that failed silently, a stray
+sale mid-transit, a miscount when the fridge was originally stocked).
+The **ideal order is: count physically, correct if needed, then Close
+out** — that way the recorded number is never a guess. When that's not
+practical and Close-out happens first, `quantityWasted` on the Edit
+form is directly correctable, same as `quantityAvailable` always has
+been — so once someone's physically there and finds a different count,
+fix the wasted number to match reality. Worth knowing what a mismatch
+might mean: found *fewer* than the system expected is worth treating as
+a possible shrinkage signal (theft, or a scan/accounting gap) rather
+than ordinary food waste; found *more* is usually just a miscount or an
+early close-out, lower-stakes to correct.
 
 **Suggested daily routine:** each morning, Close out any batch from the
 previous fridge visit that still shows leftover stock, then create

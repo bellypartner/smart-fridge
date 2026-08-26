@@ -230,28 +230,37 @@
   @media print {
     /* Sized for a 50mm(W) x 25mm(H) thermal label printer — one physical
        label per print job, so each copy gets its own page rather than a
-       cut-apart grid on regular paper. */
+       cut-apart grid on regular paper. The code is also printed as plain
+       text (not just encoded in the QR) — if a scan ever fails, staff or
+       the customer can still type it into the shop app's "Can't scan?
+       Enter the code" fallback instead of the item being unpurchasable. */
     @page { size: 50mm 25mm; margin: 0; }
     body > *:not(#printArea) { display: none !important; }
     #printArea { display: block !important; }
 
     .thermal-label {
       width: 50mm; height: 25mm; box-sizing: border-box;
-      display: flex; align-items: center; padding: 0.8mm 1mm;
+      display: flex; flex-direction: column; padding: 0.6mm 1mm;
       page-break-after: always; break-after: page;
       font-family: Arial, Helvetica, sans-serif; color: #000;
     }
+    .thermal-label .tl-main { flex: 1; min-height: 0; display: flex; align-items: center; }
     .thermal-label .tl-text { flex: 1; min-width: 0; padding-right: 1mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
     .thermal-label .tl-name {
-      font-size: 3.8mm; font-weight: 700; line-height: 1.05; margin-bottom: 1.1mm;
+      font-size: 3.6mm; font-weight: 700; line-height: 1.05; margin-bottom: 1mm;
       word-break: break-word; overflow: hidden; display: -webkit-box;
       -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .thermal-label .tl-line { font-size: 2.5mm; line-height: 1.4; white-space: nowrap; }
-    .thermal-label .tl-qr { width: 22.5mm; height: 22.5mm; flex-shrink: 0; }
+    .thermal-label .tl-line { font-size: 2.3mm; line-height: 1.35; white-space: nowrap; }
+    .thermal-label .tl-qr { width: 19mm; height: 19mm; flex-shrink: 0; }
     .thermal-label .tl-qr img { width: 100%; height: 100%; display: block; }
-    .thermal-label-fridge .tl-qr { width: 23.4mm; height: 23.4mm; }
-    .thermal-label-fridge .tl-name { font-size: 4.2mm; -webkit-line-clamp: 3; }
+    .thermal-label .tl-code {
+      font-family: 'Courier New', monospace; font-size: 1.7mm; line-height: 1.15;
+      text-align: center; word-break: break-all; overflow: hidden;
+      max-height: 4mm; margin-top: 0.4mm; flex-shrink: 0;
+    }
+    .thermal-label-fridge .tl-qr { width: 20mm; height: 20mm; }
+    .thermal-label-fridge .tl-name { font-size: 4mm; -webkit-line-clamp: 2; }
   }
 </style>
 </head>
@@ -409,8 +418,9 @@
       <div class="grid">
         <div class="card">
           <h3>New batch</h3>
+          <div id="closeOutReminder" class="hidden" style="background:#FFF3E0;border:1px solid #FFD199;color:#B8600A;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;"></div>
           <label>Fridge</label>
-          <select id="batchFridge" onchange="updateBatchCodePreview()"><option value="">Select a fridge…</option></select>
+          <select id="batchFridge" onchange="updateBatchCodePreview(); checkCloseOutReminder();"><option value="">Select a fridge…</option></select>
           <label>Product</label>
           <select id="batchProduct" onchange="updateBatchCodePreview()"><option value="">Select a product…</option></select>
           <label>Manufactured at</label>
@@ -868,10 +878,9 @@ function previewProductCode(name) {
   return words[0].slice(0, 3).padEnd(3, 'X') + words[1].slice(0, 3).padEnd(3, 'X');
 }
 function previewDateCode(date) {
-  const yy = String(date.getFullYear()).slice(-2);
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
   const dd = String(date.getDate()).padStart(2, '0');
-  return yy + mm + dd;
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return dd + mm;
 }
 
 function updateBatchCodePreview() {
@@ -888,8 +897,26 @@ function updateBatchCodePreview() {
     el.innerHTML = '<span class="label">Batch code (auto-generated)</span>—';
     return;
   }
-  const code = 'SC-' + fridgeCode + '-' + previewProductCode(productName) + '-' + previewDateCode(date);
+  const code = fridgeCode + '-' + previewProductCode(productName) + '-' + previewDateCode(date);
   el.innerHTML = '<span class="label">Batch code (auto-generated)</span>' + code;
+}
+
+// Warns if the selected fridge has any ACTIVE batch still sitting with
+// leftover stock — almost always yesterday's batch that never got
+// Close-out'd. Non-blocking: this is a nudge, not a hard stop.
+function checkCloseOutReminder() {
+  const fridgeId = document.getElementById('batchFridge').value;
+  const banner = document.getElementById('closeOutReminder');
+  if (!fridgeId) { banner.classList.add('hidden'); return; }
+
+  api('/admin/fridges/' + fridgeId + '/stock').then((rows) => {
+    const unclosed = rows.filter((r) => r.batch.status === 'ACTIVE' && r.quantityAvailable > 0);
+    if (unclosed.length === 0) { banner.classList.add('hidden'); return; }
+
+    const names = unclosed.map((r) => r.batch.product.name + ' (' + r.quantityAvailable + ' left)').join(', ');
+    banner.innerHTML = '⚠️ This fridge still has unclosed stock: ' + names + '. Close it out in the Stock tab before today\'s batch, or yesterday\'s leftovers will keep counting as available.';
+    banner.classList.remove('hidden');
+  }).catch(() => {});
 }
 
 function loadBatches() {
@@ -905,7 +932,8 @@ function loadBatches() {
     )).join('') : '<tr class="empty-row"><td colspan="5">No batches yet</td></tr>';
 
     const sel = document.getElementById('stockBatch');
-    sel.innerHTML = '<option value="">Select a batch…</option>' + batches.map((b) => '<option value="' + b.id + '">' + b.batchCode + ' (' + b.product.name + ')</option>').join('');
+    const activeBatches = batches.filter((b) => b.status === 'ACTIVE');
+    sel.innerHTML = '<option value="">Select a batch…</option>' + activeBatches.map((b) => '<option value="' + b.id + '">' + b.batchCode + ' (' + b.product.name + ')</option>').join('');
   }).catch(() => {});
 }
 
@@ -1009,6 +1037,7 @@ function openFridgeQr(code, name) {
   qrState.text = url;
   qrState.label = name;
   qrState.sub = url;
+  qrState.fridgeCode = code;
   qrState.isBatch = false;
   qrState.batch = null;
   renderQrModal('Fridge QR — ' + name, url, false);
@@ -1085,19 +1114,25 @@ function printQrSheet() {
     const weightLine = b.product.weightGrams ? '<div class="tl-line">Wt: ' + b.product.weightGrams + ' g</div>' : '';
     labelHtml =
       '<div class="thermal-label">' +
-        '<div class="tl-text">' +
-          '<div class="tl-name">' + b.product.name + '</div>' +
-          '<div class="tl-line">Mfg: ' + formatLabelDate(b.manufacturedAt) + '</div>' +
-          weightLine +
-          '<div class="tl-line">Exp: ' + formatLabelDate(b.expiresAt) + '</div>' +
+        '<div class="tl-main">' +
+          '<div class="tl-text">' +
+            '<div class="tl-name">' + b.product.name + '</div>' +
+            '<div class="tl-line">Mfg: ' + formatLabelDate(b.manufacturedAt) + '</div>' +
+            weightLine +
+            '<div class="tl-line">Exp: ' + formatLabelDate(b.expiresAt) + '</div>' +
+          '</div>' +
+          '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
         '</div>' +
-        '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+        '<div class="tl-code">' + b.batchCode + '</div>' +
       '</div>';
   } else {
     labelHtml =
       '<div class="thermal-label thermal-label-fridge">' +
-        '<div class="tl-text"><div class="tl-name">' + qrState.label + '</div></div>' +
-        '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+        '<div class="tl-main">' +
+          '<div class="tl-text"><div class="tl-name">' + qrState.label + '</div></div>' +
+          '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+        '</div>' +
+        '<div class="tl-code">' + qrState.fridgeCode + '</div>' +
       '</div>';
   }
 
@@ -1181,6 +1216,7 @@ const EDIT_CONFIGS = {
   ],
   stock: (s) => [
     { key: 'quantityAvailable', label: 'Available quantity', type: 'number', value: s.quantityAvailable },
+    { key: 'quantityWasted', label: 'Wasted quantity (correct this if a physical count after Close-out differs)', type: 'number', value: s.quantityWasted },
   ],
 };
 

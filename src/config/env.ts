@@ -14,7 +14,7 @@ const envSchema = z.object({
   OTP_EXPIRES_IN_MINUTES: z.coerce.number().default(5),
   OTP_MAX_ATTEMPTS: z.coerce.number().default(5),
 
-  SESSION_TTL_MINUTES: z.coerce.number().default(20),
+  SESSION_TTL_MINUTES: z.coerce.number().default(10),
 
   // One-time secret to create the very first ADMIN account via
   // POST /api/auth/bootstrap-admin. Set this in Railway, use it once, then
