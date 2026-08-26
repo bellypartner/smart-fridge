@@ -216,6 +216,18 @@ router.delete(
   })
 );
 
+// Daily perishable close-out: records whatever's left as waste, zeroes
+// availability, and flips the batch to EXPIRED.
+router.post(
+  "/fridges/:fridgeId/stock/:batchId/close-out",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(stockParamSchema),
+  asyncHandler(async (req, res) => {
+    const result = await adminService.closeOutStock(req.params.fridgeId, req.params.batchId);
+    res.status(200).json(result);
+  })
+);
+
 // ── Orders / Sales — ADMIN only, revenue isn't shown to kitchen staff ──
 router.get(
   "/orders",

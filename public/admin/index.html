@@ -434,10 +434,11 @@
         <div class="card">
           <h3>Current stock at selected fridge</h3>
           <table>
-            <thead><tr><th>Product</th><th>Batch</th><th>Levels</th><th>Sold</th><th></th></tr></thead>
-            <tbody id="stockTable"><tr class="empty-row"><td colspan="5">Select a fridge above</td></tr></tbody>
+            <thead><tr><th>Product</th><th>Batch</th><th>Made</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
+            <tbody id="stockTable"><tr class="empty-row"><td colspan="7">Select a fridge above</td></tr></tbody>
           </table>
           <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
+          <div class="field-note">"Made" is the running total ever allocated to this batch — it doesn't change from manual corrections. Use "Close out" at the end of each day to record whatever's left as waste and stop it from selling further.</div>
         </div>
       </div>
     </div>
@@ -919,20 +920,34 @@ function createBatch() {
 function loadFridgeStock() {
   const fridgeId = document.getElementById('stockFridge').value;
   const tbody = document.getElementById('stockTable');
-  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Select a fridge above</td></tr>'; return; }
+  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Select a fridge above</td></tr>'; return; }
   api('/admin/fridges/' + fridgeId + '/stock').then((rows) => {
     stockCache = rows;
     tbody.innerHTML = rows.length ? rows.map((r) => {
       const total = r.quantityAvailable + r.quantityHeld || 1;
       const availPct = Math.round((r.quantityAvailable / total) * 100);
+      const closeOutDisabled = r.quantityAvailable === 0 ? 'disabled title="Nothing left to close out"' : '';
       return '<tr><td>' + r.batch.product.name + '</td><td>' + r.batch.batchCode + '</td>' +
+        '<td>' + r.quantityAllocated + '</td>' +
         '<td><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
         '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></td>' +
         '<td>' + r.quantitySold + '</td>' +
-        '<td><button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
+        '<td>' + r.quantityWasted + '</td>' +
+        '<td><button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button> ' +
+        '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
         '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
-    }).join('') : '<tr class="empty-row"><td colspan="5">No stock allocated at this fridge yet</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="7">No stock allocated at this fridge yet</td></tr>';
   }).catch(() => {});
+}
+
+function closeOutStock(fridgeId, batchId, productName, currentAvailable) {
+  if (!confirm('Close out ' + productName + '? This will record ' + currentAvailable + ' unit(s) as wasted and stop it from being sold further.')) return;
+  api('/admin/fridges/' + fridgeId + '/stock/' + batchId + '/close-out', { method: 'POST' })
+    .then((result) => {
+      loadFridgeStock();
+      loadBatches();
+    })
+    .catch((e) => alert(e.message));
 }
 
 function allocateStock() {

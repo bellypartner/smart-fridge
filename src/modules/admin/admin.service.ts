@@ -142,8 +142,8 @@ export const createBatch = async (data: {
 
     const stock = await tx.fridgeStock.upsert({
       where: { fridgeId_batchId: { fridgeId: data.fridgeId, batchId: batch.id } },
-      update: { quantityAvailable: { increment: data.quantity } },
-      create: { fridgeId: data.fridgeId, batchId: batch.id, quantityAvailable: data.quantity },
+      update: { quantityAvailable: { increment: data.quantity }, quantityAllocated: { increment: data.quantity } },
+      create: { fridgeId: data.fridgeId, batchId: batch.id, quantityAvailable: data.quantity, quantityAllocated: data.quantity },
     });
 
     return { batch, stock };
@@ -224,8 +224,8 @@ export const allocateStock = async (fridgeId: string, batchId: string, quantity:
 
   return prisma.fridgeStock.upsert({
     where: { fridgeId_batchId: { fridgeId, batchId } },
-    update: { quantityAvailable: { increment: quantity } },
-    create: { fridgeId, batchId, quantityAvailable: quantity },
+    update: { quantityAvailable: { increment: quantity }, quantityAllocated: { increment: quantity } },
+    create: { fridgeId, batchId, quantityAvailable: quantity, quantityAllocated: quantity },
   });
 };
 
@@ -238,7 +238,8 @@ export const listFridgeStock = (fridgeId: string) => {
 
 // Sets the exact available quantity — for correcting a manual stock count
 // (physical count vs. system count), unlike allocateStock() above which
-// only ever adds to whatever's already there.
+// only ever adds to whatever's already there. Deliberately does NOT touch
+// quantityAllocated — this is a correction, not new stock coming in.
 export const setStockQuantity = async (fridgeId: string, batchId: string, quantityAvailable: number) => {
   const stock = await prisma.fridgeStock.findUnique({ where: { fridgeId_batchId: { fridgeId, batchId } } });
   if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
@@ -260,6 +261,35 @@ export const deleteStock = async (fridgeId: string, batchId: string) => {
   }
 
   await prisma.fridgeStock.delete({ where: { fridgeId_batchId: { fridgeId, batchId } } });
+};
+
+// The daily "close out" action for perishable stock: whatever's still sitting
+// in quantityAvailable at close-out time is, by definition, getting thrown
+// away — this records that as waste and zeroes it out so it can never be
+// sold. Also flips the batch to EXPIRED (unless it's already RECALLED) so
+// the Batches tab honestly reflects it's done for the day. Deliberately
+// leaves quantityHeld alone — a cart still in flight resolves itself via the
+// existing session-expiry/webhook paths, not this action.
+export const closeOutStock = async (fridgeId: string, batchId: string) => {
+  const stock = await prisma.fridgeStock.findUnique({ where: { fridgeId_batchId: { fridgeId, batchId } } });
+  if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
+
+  const wastedNow = stock.quantityAvailable;
+
+  return prisma.$transaction(async (tx) => {
+    const updatedStock = await tx.fridgeStock.update({
+      where: { fridgeId_batchId: { fridgeId, batchId } },
+      data: { quantityAvailable: 0, quantityWasted: { increment: wastedNow } },
+      include: { batch: { include: { product: true } } },
+    });
+
+    const batch = await tx.batch.findUnique({ where: { id: batchId } });
+    if (batch && batch.status === "ACTIVE") {
+      await tx.batch.update({ where: { id: batchId }, data: { status: "EXPIRED" } });
+    }
+
+    return { stock: updatedStock, wastedNow };
+  });
 };
 
 export const listFridges = () => {

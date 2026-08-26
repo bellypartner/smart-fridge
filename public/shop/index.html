@@ -231,14 +231,15 @@
 
 <!-- ═══════════════ MANUAL ENTRY MODAL ═══════════════ -->
 <div id="manualEntryModal" class="hidden">
-  <div class="modal-backdrop" onclick="closeManualEntry()"></div>
-  <div class="modal-card" onclick="event.stopPropagation()">
-    <h3>Enter product code</h3>
-    <div class="modal-sub">Type the code printed under the QR sticker.</div>
-    <input id="manualCodeInput" placeholder="e.g. SC-FRIDGE-001-CHISAL-260825" />
-    <div id="manualEntryError"></div>
-    <button class="btn-cta" style="margin-top:14px" onclick="submitManualCode()">Add to cart</button>
-    <button class="btn-ghost-full" onclick="closeManualEntry()">Cancel</button>
+  <div class="modal-backdrop" onclick="closeManualEntry(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <h3>Enter product code</h3>
+      <div class="modal-sub">Type the code printed under the QR sticker.</div>
+      <input id="manualCodeInput" placeholder="e.g. SC-FRIDGE-001-CHISAL-260825" />
+      <div id="manualEntryError"></div>
+      <button class="btn-cta" style="margin-top:14px" onclick="submitManualCode()">Add to cart</button>
+      <button class="btn-ghost-full" onclick="closeManualEntry()">Cancel</button>
+    </div>
   </div>
 </div>
 
@@ -391,7 +392,8 @@ function openManualEntry() {
   document.getElementById('manualCodeInput').value = '';
   document.getElementById('manualEntryModal').classList.remove('hidden');
 }
-function closeManualEntry() {
+function closeManualEntry(event) {
+  if (event && event.target !== event.currentTarget) return;
   document.getElementById('manualEntryModal').classList.add('hidden');
 }
 function submitManualCode() {

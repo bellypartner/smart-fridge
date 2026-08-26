@@ -54,8 +54,8 @@ async function main() {
 
   await prisma.fridgeStock.upsert({
     where: { fridgeId_batchId: { fridgeId: fridge.id, batchId: batch.id } },
-    update: { quantityAvailable: 20 },
-    create: { fridgeId: fridge.id, batchId: batch.id, quantityAvailable: 20 },
+    update: { quantityAvailable: 20, quantityAllocated: 20 },
+    create: { fridgeId: fridge.id, batchId: batch.id, quantityAvailable: 20, quantityAllocated: 20 },
   });
 
   const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 10);

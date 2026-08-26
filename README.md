@@ -177,6 +177,7 @@ PATCH  /api/admin/fridges/:id         ADMIN — name, location, isActive
 DELETE /api/admin/fridges/:id         ADMIN — blocked if it has stock/sessions/orders
 PATCH  /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — sets exact quantityAvailable
 DELETE /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — blocked while quantityHeld > 0
+POST   /api/admin/fridges/:fridgeId/stock/:batchId/close-out   ADMIN, KITCHEN — records leftover as waste, zeroes availability, flips batch to EXPIRED
 GET    /api/admin/customers           ADMIN only — grouped by phone, with spend/frequency
 GET    /api/admin/customers/:phone    ADMIN only — that customer's full order history
 ```
@@ -281,6 +282,39 @@ block any further checkout attempt on that session, because the `FAILED`
 order row stayed in place and the unique constraint on `Order.sessionId`
 rejected a second one. Checkout now clears a `FAILED` order and creates a
 fresh attempt, so a declined card or cancelled payment popup is retryable.
+
+## Perishable stock — daily close-out and waste tracking
+
+Because this is fresh food, whatever's left unsold at the end of a day
+gets physically thrown away — the Stock tab now reflects that instead of
+just letting old stock sit there silently.
+
+Two new fields on `FridgeStock`:
+- **`quantityAllocated`** — an immutable running total of everything ever
+  put into this batch at this fridge (incremented only by creating a
+  batch or restocking it). Shown as **Made** in the Stock tab. Manual
+  corrections (the Edit button) never touch this, so it stays an honest
+  record even after a count correction.
+- **`quantityWasted`** — cumulative units recorded as thrown away. Shown
+  as **Wasted**.
+
+The **Close out** button on each stock row is the daily routine: it
+takes whatever's currently in `quantityAvailable`, records that exact
+amount as waste, zeroes availability so it can never be sold again, and
+flips the batch to `EXPIRED` (unless it's already `RECALLED`) so the
+Batches tab honestly shows it's done for the day. It deliberately leaves
+`quantityHeld` alone — a cart still in flight resolves itself through the
+existing session-expiry/webhook paths, not this action.
+
+With this, each row in the Stock tab reads as **Made → Sold → Wasted**
+for that batch — since a batch is inherently one day's production (the
+date is baked into its code), this *is* the daily made/sold/wasted view,
+no separate "daily" tab needed. Daily revenue is still the Sales tab's
+"Today" stat cards, which need no manual step.
+
+**Suggested daily routine:** each morning, Close out any batch from the
+previous fridge visit that still shows leftover stock, then create
+today's fresh batch as usual in the Batches tab.
 
 ## Editing and deleting
 

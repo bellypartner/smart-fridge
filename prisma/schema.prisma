@@ -168,6 +168,8 @@ model FridgeStock {
   quantityAvailable  Int      @default(0)
   quantityHeld       Int      @default(0)
   quantitySold       Int      @default(0)
+  quantityWasted     Int      @default(0) // set by the daily "close out" action — see admin.service.ts closeOutStock
+  quantityAllocated  Int      @default(0) // immutable running total ever allocated (create/restock only) — the "made" figure; not touched by manual corrections or close-out, so it stays honest even after those
   updatedAt          DateTime @updatedAt
 
   @@unique([fridgeId, batchId])
