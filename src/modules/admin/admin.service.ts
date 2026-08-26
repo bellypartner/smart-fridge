@@ -49,6 +49,7 @@ export const createProduct = async (data: {
   carbsG?: number;
   fatG?: number;
   description?: string;
+  weightGrams?: number;
   mrp: number;
   sellingPrice: number;
   gstPercent: number;
@@ -71,6 +72,7 @@ export const updateProduct = async (
     carbsG: number;
     fatG: number;
     description: string;
+    weightGrams: number;
     mrp: number;
     sellingPrice: number;
     gstPercent: number;

@@ -283,6 +283,34 @@ order row stayed in place and the unique constraint on `Order.sessionId`
 rejected a second one. Checkout now clears a `FAILED` order and creates a
 fresh attempt, so a declined card or cancelled payment popup is retryable.
 
+## Printing batch labels on a real thermal printer
+
+The QR print output is sized for a **50mm × 25mm thermal label
+printer** (the actual hardware in use) — not a cut-apart sheet on
+regular paper. Each copy prints as its own physical label
+(`@page { size: 50mm 25mm; margin: 0 }`, `page-break-after: always`
+between copies), so set your printer/driver's label size to match and
+"Print" sends one label per copy directly.
+
+Layout: item name (bold, large) with manufactured date, weight, and
+expiry stacked below it on the left; a QR code sized to fill most of the
+label's height on the right. Sizing is tuned to use as much of the
+physical label as the content allows (fonts and QR scaled up, margins
+minimized) rather than leaving unused white space, while staying safely
+within a 50×25mm boundary. Verified end-to-end during development:
+rendered at true size, decoded back with a QR reader, confirmed to
+match the source string exactly.
+
+Add a product's **Weight (g)** in the Products tab to have it appear on
+the label; leave it blank to omit that line. Expiry isn't a separate
+field anywhere — it's always `manufacturedAt + Product.shelfLifeHours`,
+computed automatically and shown in the Batches table's Expires column
+(see "Auto-generated batch codes" above).
+
+Fridge QR labels use a simpler version of the same template (just the
+fridge name and a larger QR, no expiry/weight lines) at the same
+physical size, since a fridge sticker is printed once, not per batch.
+
 ## Perishable stock — daily close-out and waste tracking
 
 Because this is fresh food, whatever's left unsold at the end of a day

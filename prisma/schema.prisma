@@ -117,6 +117,7 @@ model Product {
   carbsG        Float?
   fatG          Float?
   description   String?
+  weightGrams   Int?     // shown on the printed batch label
   mrp           Decimal  @db.Decimal(10, 2)
   sellingPrice  Decimal  @db.Decimal(10, 2)
   gstPercent    Decimal  @db.Decimal(5, 2) @default(0)
