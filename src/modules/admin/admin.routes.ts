@@ -8,6 +8,15 @@ import {
   createCategorySchema,
   createFridgeSchema,
   createProductSchema,
+  customerPhoneParamSchema,
+  idParamSchema,
+  listOrdersQuerySchema,
+  stockParamSchema,
+  updateBatchStatusSchema,
+  updateCategorySchema,
+  updateFridgeSchema,
+  updateProductSchema,
+  updateStockSchema,
 } from "./admin.schema";
 import * as adminService from "./admin.service";
 
@@ -15,6 +24,7 @@ const router = Router();
 
 router.use(requireAuth);
 
+// ── Categories ───────────────────────────────────────────────
 router.post(
   "/categories",
   requireRole("ADMIN"),
@@ -33,6 +43,26 @@ router.get(
   })
 );
 
+router.patch(
+  "/categories/:id",
+  requireRole("ADMIN"),
+  validate(updateCategorySchema),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.updateCategory(req.params.id, req.body.name));
+  })
+);
+
+router.delete(
+  "/categories/:id",
+  requireRole("ADMIN"),
+  validate(idParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteCategory(req.params.id);
+    res.status(204).send();
+  })
+);
+
+// ── Products ─────────────────────────────────────────────────
 router.post(
   "/products",
   requireRole("ADMIN"),
@@ -43,6 +73,34 @@ router.post(
   })
 );
 
+router.get(
+  "/products",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listProducts());
+  })
+);
+
+router.patch(
+  "/products/:id",
+  requireRole("ADMIN"),
+  validate(updateProductSchema),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.updateProduct(req.params.id, req.body));
+  })
+);
+
+router.delete(
+  "/products/:id",
+  requireRole("ADMIN"),
+  validate(idParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteProduct(req.params.id);
+    res.status(204).send();
+  })
+);
+
+// ── Batches ──────────────────────────────────────────────────
 router.post(
   "/batches",
   requireRole("ADMIN", "KITCHEN"),
@@ -53,6 +111,34 @@ router.post(
   })
 );
 
+router.get(
+  "/batches",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listBatches());
+  })
+);
+
+router.patch(
+  "/batches/:id",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(updateBatchStatusSchema),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.updateBatchStatus(req.params.id, req.body.status));
+  })
+);
+
+router.delete(
+  "/batches/:id",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(idParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteBatch(req.params.id);
+    res.status(204).send();
+  })
+);
+
+// ── Fridges ──────────────────────────────────────────────────
 router.post(
   "/fridges",
   requireRole("ADMIN"),
@@ -63,6 +149,34 @@ router.post(
   })
 );
 
+router.get(
+  "/fridges",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listFridges());
+  })
+);
+
+router.patch(
+  "/fridges/:id",
+  requireRole("ADMIN"),
+  validate(updateFridgeSchema),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.updateFridge(req.params.id, req.body));
+  })
+);
+
+router.delete(
+  "/fridges/:id",
+  requireRole("ADMIN"),
+  validate(idParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteFridge(req.params.id);
+    res.status(204).send();
+  })
+);
+
+// ── Stock ────────────────────────────────────────────────────
 router.post(
   "/fridges/:fridgeId/stock",
   requireRole("ADMIN", "KITCHEN"),
@@ -82,27 +196,60 @@ router.get(
   })
 );
 
-router.get(
-  "/fridges",
+router.patch(
+  "/fridges/:fridgeId/stock/:batchId",
   requireRole("ADMIN", "KITCHEN"),
-  asyncHandler(async (_req, res) => {
-    res.status(200).json(await adminService.listFridges());
+  validate(updateStockSchema),
+  asyncHandler(async (req, res) => {
+    const stock = await adminService.setStockQuantity(req.params.fridgeId, req.params.batchId, req.body.quantityAvailable);
+    res.status(200).json(stock);
+  })
+);
+
+router.delete(
+  "/fridges/:fridgeId/stock/:batchId",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(stockParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteStock(req.params.fridgeId, req.params.batchId);
+    res.status(204).send();
+  })
+);
+
+// ── Orders / Sales — ADMIN only, revenue isn't shown to kitchen staff ──
+router.get(
+  "/orders",
+  requireRole("ADMIN"),
+  validate(listOrdersQuerySchema),
+  asyncHandler(async (req, res) => {
+    const { status, fridgeId } = req.query as { status?: string; fridgeId?: string };
+    res.status(200).json(await adminService.listOrders({ status, fridgeId }));
   })
 );
 
 router.get(
-  "/products",
-  requireRole("ADMIN", "KITCHEN"),
+  "/orders/stats",
+  requireRole("ADMIN"),
   asyncHandler(async (_req, res) => {
-    res.status(200).json(await adminService.listProducts());
+    res.status(200).json(await adminService.getSalesStats());
+  })
+);
+
+// ── Customers — ADMIN only ──────────────────────────────────
+router.get(
+  "/customers",
+  requireRole("ADMIN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listCustomers());
   })
 );
 
 router.get(
-  "/batches",
-  requireRole("ADMIN", "KITCHEN"),
-  asyncHandler(async (_req, res) => {
-    res.status(200).json(await adminService.listBatches());
+  "/customers/:phone",
+  requireRole("ADMIN"),
+  validate(customerPhoneParamSchema),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.getCustomerHistory(req.params.phone));
   })
 );
 

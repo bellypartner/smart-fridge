@@ -164,6 +164,21 @@ GET    /api/admin/fridges/:id/stock   ADMIN, KITCHEN
 GET    /api/admin/fridges             ADMIN, KITCHEN — list all fridges
 GET    /api/admin/products            ADMIN, KITCHEN — list all products (includes category + image)
 GET    /api/admin/batches             ADMIN, KITCHEN — list all batches
+GET    /api/admin/orders              ADMIN only — ?status= and/or ?fridgeId= filters, most recent 200
+GET    /api/admin/orders/stats        ADMIN only — total/today revenue+orders, best sellers, revenue by fridge
+
+PATCH  /api/admin/categories/:id      ADMIN — rename
+DELETE /api/admin/categories/:id      ADMIN — blocked if any product uses it
+PATCH  /api/admin/products/:id        ADMIN — any field, including a new photo
+DELETE /api/admin/products/:id        ADMIN — blocked if any batch exists for it
+PATCH  /api/admin/batches/:id         ADMIN, KITCHEN — { status: ACTIVE|EXPIRED|RECALLED }
+DELETE /api/admin/batches/:id         ADMIN, KITCHEN — blocked if it has real order history
+PATCH  /api/admin/fridges/:id         ADMIN — name, location, isActive
+DELETE /api/admin/fridges/:id         ADMIN — blocked if it has stock/sessions/orders
+PATCH  /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — sets exact quantityAvailable
+DELETE /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — blocked while quantityHeld > 0
+GET    /api/admin/customers           ADMIN only — grouped by phone, with spend/frequency
+GET    /api/admin/customers/:phone    ADMIN only — that customer's full order history
 ```
 
 ## Business rules encoded here
@@ -267,12 +282,74 @@ order row stayed in place and the unique constraint on `Order.sessionId`
 rejected a second one. Checkout now clears a `FAILED` order and creates a
 fresh attempt, so a declined card or cancelled payment popup is retryable.
 
+## Editing and deleting
+
+Every entity created in the dashboard (Categories, Fridges, Products,
+Batches, Stock) now has **Edit** and **Delete** buttons in its table.
+Delete is deliberately conservative — it's blocked with a clear message
+wherever real data depends on the row, rather than silently orphaning
+history or cascading a destructive delete:
+
+- A **category** can't be deleted while any product still uses it.
+- A **product** can't be deleted while any batch exists for it —
+  deactivate it instead (the `isActive` toggle in its edit form).
+- A **fridge** can't be deleted once it has any stock, sessions, or
+  orders against it — same deactivate-instead pattern.
+- A **batch** can't be deleted once it has real order history — mark it
+  `RECALLED` instead (an editable status, alongside `ACTIVE`/`EXPIRED`).
+- A **stock** row can't be deleted while a customer currently has it held
+  in an active cart.
+
+One thing worth knowing: `Fridge.isActive` is already enforced —
+`POST /api/sessions` refuses to start a session against an inactive
+fridge. `Product.isActive`, however, isn't enforced anywhere yet (a
+deactivated product's existing batches are still scannable) — the toggle
+exists in the UI, but wiring it into the scan/batch-creation flow is a
+small follow-up if you want deactivation to actually block new sales of
+that product, not just hide it from the create-product dropdown mentally.
+
+## Customer analytics
+
+The **Customers** tab (ADMIN only) groups paid orders by phone number —
+that's the only stable identity available, since there's no customer
+login (name can vary between visits; phone is what actually identifies a
+repeat customer). For each customer: total orders, total spent, last
+order date, and a frequency label:
+
+- **New** — exactly one order so far
+- **Frequent** — averaging 7 days or less between orders
+- **Regular** — averaging 8–21 days between orders
+- **Occasional** — averaging more than 21 days between orders
+
+Click a row to see that customer's full order history (date, fridge,
+items, total, status) in a detail view. Like the Sales tab, this is
+computed in application code over all paid orders — fine at pilot
+volumes, worth revisiting with real SQL aggregation if order volume
+grows substantially.
+
+## Sales dashboard
+
+The `/admin` dashboard's **Sales** tab (ADMIN only — not shown to KITCHEN
+staff, since revenue is sensitive) shows: total and today's revenue and
+paid-order counts, a best-sellers table (by quantity), revenue broken
+down by fridge, and a filterable list of recent orders (status, fridge,
+customer, item count, total). All computed from `Order`/`OrderItem` rows
+already being written by the existing checkout/webhook flow — nothing
+new to track, just a new view onto it.
+
+Stats are aggregated in application code (fetch all `PAID` orders, sum in
+JS) rather than a SQL `GROUP BY` — simple and fast enough at pilot order
+volumes (hundreds, maybe low thousands). Worth moving to real SQL
+aggregation, or a cron-computed summary table, if order volume grows into
+the tens of thousands.
+
 ## Not in Phase 1 (next phases, on request)
 
 - Kitchen/admin console beyond what's in `/admin` today
 - Corporate wallet + monthly billing
 - Loyalty/coupons
-- Analytics dashboards
+- Deeper analytics (peak hours, customer frequency/repeat rate, expiry
+  loss, average order value) beyond what the Sales tab covers today
 - Leakage report (physical count vs. `quantitySold` per fridge) — same
   shape as the existing inventory leakage tracker, worth wiring in early
   since there's no door lock to enforce payment in this phase

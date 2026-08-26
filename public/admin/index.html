@@ -139,6 +139,18 @@
   .main .page-sub { font-size: 13px; color: var(--body); margin-bottom: 28px; }
 
   .grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+  .stat-card .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--body); margin-bottom: 6px; }
+  .stat-card .stat-value { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 24px; color: var(--heading); }
+  .stat-card .stat-value.accent { color: var(--primary); }
+  @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } .grid-2 { grid-template-columns: 1fr; } }
+
+  .filter-select { width: auto; padding: 8px 12px; }
+  .card-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-header-row h3 { margin: 0; }
   .card {
     background: var(--white);
     border: 1px solid var(--border);
@@ -155,6 +167,8 @@
   .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
   .badge-active { background: #EAF6EB; color: var(--primary); }
   .badge-inactive { background: #F4F1EA; color: var(--body); }
+  .badge-pending { background: #FFF3E0; color: #B8600A; }
+  .badge-failed { background: #FDEDEC; color: var(--danger); }
   .empty-row td { text-align: center; color: var(--body); padding: 28px; font-style: italic; }
 
   .stock-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); width: 120px; }
@@ -199,6 +213,18 @@
   .qr-copies-row { display: flex; align-items: center; gap: 10px; justify-content: center; margin: 14px 0 4px; }
   .qr-copies-row input { width: 70px; text-align: center; }
   .qr-copies-row label { margin: 0; }
+
+  .edit-modal-card {
+    background: var(--white); border-radius: 20px; padding: 26px; width: 100%; max-width: 400px; text-align: left;
+  }
+  .edit-modal-card h3 { font-size: 16px; margin: 0 0 6px; }
+  .edit-modal-card label:first-of-type { margin-top: 6px; }
+  .field-row-checkbox { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+  .field-row-checkbox input { width: auto; }
+  .field-row-checkbox label { margin: 0; }
+  .delete-link { color: var(--danger); background: none; border: none; font-size: 12px; font-weight: 600; cursor: pointer; padding: 6px 8px; }
+  .customer-row { cursor: pointer; }
+  .customer-row:hover { background: var(--bg); }
 
   #printArea { display: none; }
   @media print {
@@ -263,6 +289,8 @@
     <div class="nav-item" data-tab="products" onclick="switchTab('products')">Products</div>
     <div class="nav-item" data-tab="batches" onclick="switchTab('batches')">Batches</div>
     <div class="nav-item" data-tab="stock" onclick="switchTab('stock')">Stock</div>
+    <div class="nav-item hidden" id="salesNavItem" data-tab="sales" onclick="switchTab('sales')">Sales</div>
+    <div class="nav-item hidden" id="customersNavItem" data-tab="customers" onclick="switchTab('customers')">Customers</div>
     <div class="nav-item hidden" id="staffNavItem" data-tab="staff" onclick="switchTab('staff')">Staff</div>
 
     <div class="sidebar-footer">
@@ -312,8 +340,8 @@
         <div class="card">
           <h3>All categories</h3>
           <table>
-            <thead><tr><th>Name</th></tr></thead>
-            <tbody id="categoriesTable"><tr class="empty-row"><td colspan="1">No categories yet</td></tr></tbody>
+            <thead><tr><th>Name</th><th></th></tr></thead>
+            <tbody id="categoriesTable"><tr class="empty-row"><td colspan="2">No categories yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -353,8 +381,8 @@
         <div class="card">
           <h3>All products</h3>
           <table>
-            <thead><tr><th></th><th>SKU</th><th>Name</th><th>Category</th><th>Price</th></tr></thead>
-            <tbody id="productsTable"><tr class="empty-row"><td colspan="5">No products yet</td></tr></tbody>
+            <thead><tr><th></th><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th></th></tr></thead>
+            <tbody id="productsTable"><tr class="empty-row"><td colspan="6">No products yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -406,11 +434,78 @@
         <div class="card">
           <h3>Current stock at selected fridge</h3>
           <table>
-            <thead><tr><th>Product</th><th>Batch</th><th>Levels</th><th>Sold</th></tr></thead>
-            <tbody id="stockTable"><tr class="empty-row"><td colspan="4">Select a fridge above</td></tr></tbody>
+            <thead><tr><th>Product</th><th>Batch</th><th>Levels</th><th>Sold</th><th></th></tr></thead>
+            <tbody id="stockTable"><tr class="empty-row"><td colspan="5">Select a fridge above</td></tr></tbody>
           </table>
           <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
         </div>
+      </div>
+    </div>
+
+    <!-- SALES -->
+    <div class="tab-panel hidden" id="tab-sales">
+      <h1>Sales</h1>
+      <div class="page-sub">Revenue and order activity across all your fridges.</div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total revenue</div><div class="stat-value accent" id="statTotalRevenue">₹0</div></div>
+        <div class="stat-card"><div class="stat-label">Total paid orders</div><div class="stat-value" id="statTotalOrders">0</div></div>
+        <div class="stat-card"><div class="stat-label">Today's revenue</div><div class="stat-value accent" id="statTodayRevenue">₹0</div></div>
+        <div class="stat-card"><div class="stat-label">Today's orders</div><div class="stat-value" id="statTodayOrders">0</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Best sellers</h3>
+          <table>
+            <thead><tr><th>Product</th><th>Qty sold</th><th>Revenue</th></tr></thead>
+            <tbody id="bestSellersTable"><tr class="empty-row"><td colspan="3">No paid orders yet</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Revenue by fridge</h3>
+          <table>
+            <thead><tr><th>Fridge</th><th>Orders</th><th>Revenue</th></tr></thead>
+            <tbody id="fridgeSalesTable"><tr class="empty-row"><td colspan="3">No paid orders yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:24px">
+        <div class="card-header-row">
+          <h3>Recent orders</h3>
+          <select id="orderStatusFilter" class="filter-select" onchange="loadOrders()">
+            <option value="">All statuses</option>
+            <option value="PAID">Paid</option>
+            <option value="PENDING">Pending</option>
+            <option value="FAILED">Failed</option>
+            <option value="REFUNDED">Refunded</option>
+          </select>
+        </div>
+        <table>
+          <thead><tr><th>Date</th><th>Fridge</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody id="ordersTable"><tr class="empty-row"><td colspan="6">No orders yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CUSTOMERS -->
+    <div class="tab-panel hidden" id="tab-customers">
+      <h1>Customers</h1>
+      <div class="page-sub">Grouped by phone number — the only stable identity captured at checkout. Click a row to see their full order history.</div>
+      <div class="card">
+        <div class="card-header-row">
+          <h3>All customers</h3>
+          <select id="customerSort" class="filter-select" onchange="renderCustomers()">
+            <option value="spent">Sort: highest spend</option>
+            <option value="orders">Sort: most orders</option>
+            <option value="recent">Sort: most recent order</option>
+          </select>
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Phone</th><th>Orders</th><th>Total spent</th><th>Last order</th><th>Frequency</th></tr></thead>
+          <tbody id="customersTable"><tr class="empty-row"><td colspan="6">No paid orders yet</td></tr></tbody>
+        </table>
       </div>
     </div>
 
@@ -465,12 +560,44 @@
   </div>
 </div>
 
+<!-- ═══════════════ GENERIC EDIT MODAL ═══════════════ -->
+<div id="editModal" class="modal-backdrop hidden" onclick="closeEditModal(event)">
+  <div class="edit-modal-card" onclick="event.stopPropagation()">
+    <h3 id="editModalTitle">Edit</h3>
+    <div id="editModalFields"></div>
+    <div id="editModalError"></div>
+    <div class="qr-modal-actions">
+      <button class="btn-ghost-full" style="margin:0" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-cta" style="margin:0" onclick="submitEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CUSTOMER HISTORY MODAL ═══════════════ -->
+<div id="customerModal" class="modal-backdrop hidden" onclick="closeCustomerModal(event)">
+  <div class="edit-modal-card" style="max-width:520px;max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">
+    <h3 id="customerModalTitle">Order history</h3>
+    <table style="margin-top:12px">
+      <thead><tr><th>Date</th><th>Fridge</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
+      <tbody id="customerOrdersTable"></tbody>
+    </table>
+    <button class="btn-ghost-full" onclick="closeCustomerModal()">Close</button>
+  </div>
+</div>
+
 <!-- Populated just before window.print() and hidden otherwise; see printQrSheet() -->
 <div id="printArea"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"></script>
 <script>
 const state = { accessToken: null, role: null, name: null };
+let fridgesCache = [];
+let categoriesCache = [];
+let productsCache = [];
+let batchesCache = [];
+let stockCache = [];
+
+function escQ(s) { return String(s == null ? '' : s).replace(/'/g, "\\'"); }
 
 function api(path, opts = {}) {
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -535,7 +662,11 @@ function enterDashboard() {
   document.getElementById('dashScreen').classList.add('active');
   document.getElementById('whoRole').textContent = '(' + state.role + ')';
   document.getElementById('whoName').textContent = state.role === 'ADMIN' ? 'Admin' : 'Kitchen staff';
-  if (state.role === 'ADMIN') document.getElementById('staffNavItem').classList.remove('hidden');
+  if (state.role === 'ADMIN') {
+    document.getElementById('staffNavItem').classList.remove('hidden');
+    document.getElementById('salesNavItem').classList.remove('hidden');
+    document.getElementById('customersNavItem').classList.remove('hidden');
+  }
   refreshAll();
 }
 
@@ -559,6 +690,8 @@ function doLogout() {
 function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach((el) => el.classList.toggle('hidden', el.id !== 'tab-' + tab));
+  if (tab === 'sales') loadSales();
+  if (tab === 'customers') loadCustomers();
 }
 
 function refreshAll() {
@@ -571,11 +704,14 @@ function refreshAll() {
 // ── Fridges ──
 function loadFridges() {
   api('/admin/fridges').then((fridges) => {
+    fridgesCache = fridges;
     const tbody = document.getElementById('fridgesTable');
     tbody.innerHTML = fridges.length ? fridges.map((f) => (
       '<tr><td>' + f.code + '</td><td>' + f.name + '</td><td>' + (f.location || '—') + '</td>' +
       '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td>' +
-      '<td><button class="qr-btn" onclick="openFridgeQr(\'' + f.code.replace(/'/g, "\\'") + '\', \'' + f.name.replace(/'/g, "\\'") + '\')">QR</button></td></tr>'
+      '<td><button class="qr-btn" onclick="openFridgeQr(\'' + escQ(f.code) + '\', \'' + escQ(f.name) + '\')">QR</button> ' +
+      '<button class="qr-btn" onclick="openEditModal(\'fridge\',\'' + f.id + '\')">Edit</button> ' +
+      '<button class="delete-link" onclick="deleteEntity(\'fridge\',\'' + f.id + '\',\'' + escQ(f.name) + '\')">Delete</button></td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="5">No fridges yet</td></tr>';
 
     const stockSel = document.getElementById('stockFridge');
@@ -606,8 +742,13 @@ function createFridge() {
 // ── Categories ──
 function loadCategories() {
   api('/admin/categories').then((categories) => {
+    categoriesCache = categories;
     const tbody = document.getElementById('categoriesTable');
-    tbody.innerHTML = categories.length ? categories.map((c) => '<tr><td>' + c.name + '</td></tr>').join('') : '<tr class="empty-row"><td colspan="1">No categories yet</td></tr>';
+    tbody.innerHTML = categories.length ? categories.map((c) => (
+      '<tr><td>' + c.name + '</td><td>' +
+      '<button class="qr-btn" onclick="openEditModal(\'category\',\'' + c.id + '\')">Edit</button> ' +
+      '<button class="delete-link" onclick="deleteEntity(\'category\',\'' + c.id + '\',\'' + escQ(c.name) + '\')">Delete</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="2">No categories yet</td></tr>';
 
     const sel = document.getElementById('prodCategory');
     const prev = sel.value;
@@ -657,11 +798,14 @@ function handleProductImage(event) {
 
 function loadProducts() {
   api('/admin/products').then((products) => {
+    productsCache = products;
     const tbody = document.getElementById('productsTable');
     tbody.innerHTML = products.length ? products.map((p) => (
       '<tr><td>' + (p.imageUrl ? '<img class="thumb" src="' + p.imageUrl + '">' : '') + '</td>' +
-      '<td>' + p.sku + '</td><td>' + p.name + '</td><td>' + (p.category ? p.category.name : '—') + '</td><td>₹' + p.sellingPrice + '</td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="5">No products yet</td></tr>';
+      '<td>' + p.sku + '</td><td>' + p.name + '</td><td>' + (p.category ? p.category.name : '—') + '</td><td>₹' + p.sellingPrice + '</td>' +
+      '<td><button class="qr-btn" onclick="openEditModal(\'product\',\'' + p.id + '\')">Edit</button> ' +
+      '<button class="delete-link" onclick="deleteEntity(\'product\',\'' + p.id + '\',\'' + escQ(p.name) + '\')">Delete</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="6">No products yet</td></tr>';
 
     const sel = document.getElementById('batchProduct');
     const prev = sel.value;
@@ -734,11 +878,14 @@ function updateBatchCodePreview() {
 
 function loadBatches() {
   api('/admin/batches').then((batches) => {
+    batchesCache = batches;
     const tbody = document.getElementById('batchesTable');
     tbody.innerHTML = batches.length ? batches.map((b) => (
       '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
       '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td>' +
-      '<td><button class="qr-btn" onclick="openBatchQr(\'' + b.batchCode.replace(/'/g, "\\'") + '\', \'' + b.product.name.replace(/'/g, "\\'") + '\')">QR</button></td></tr>'
+      '<td><button class="qr-btn" onclick="openBatchQr(\'' + escQ(b.batchCode) + '\', \'' + escQ(b.product.name) + '\')">QR</button> ' +
+      '<button class="qr-btn" onclick="openEditModal(\'batch\',\'' + b.id + '\')">Edit</button> ' +
+      '<button class="delete-link" onclick="deleteEntity(\'batch\',\'' + b.id + '\',\'' + escQ(b.batchCode) + '\')">Delete</button></td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="5">No batches yet</td></tr>';
 
     const sel = document.getElementById('stockBatch');
@@ -772,16 +919,19 @@ function createBatch() {
 function loadFridgeStock() {
   const fridgeId = document.getElementById('stockFridge').value;
   const tbody = document.getElementById('stockTable');
-  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Select a fridge above</td></tr>'; return; }
+  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Select a fridge above</td></tr>'; return; }
   api('/admin/fridges/' + fridgeId + '/stock').then((rows) => {
+    stockCache = rows;
     tbody.innerHTML = rows.length ? rows.map((r) => {
       const total = r.quantityAvailable + r.quantityHeld || 1;
       const availPct = Math.round((r.quantityAvailable / total) * 100);
       return '<tr><td>' + r.batch.product.name + '</td><td>' + r.batch.batchCode + '</td>' +
         '<td><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
         '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></td>' +
-        '<td>' + r.quantitySold + '</td></tr>';
-    }).join('') : '<tr class="empty-row"><td colspan="4">No stock allocated at this fridge yet</td></tr>';
+        '<td>' + r.quantitySold + '</td>' +
+        '<td><button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
+        '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="5">No stock allocated at this fridge yet</td></tr>';
   }).catch(() => {});
 }
 
@@ -887,6 +1037,255 @@ function printQrSheet() {
     '<div class="pl-code">' + qrState.sub + '</div></div>';
   document.getElementById('printArea').innerHTML = '<div class="print-grid">' + label.repeat(copies) + '</div>';
   window.print();
+}
+
+// ── Sales ────────────────────────────────────────────
+function money(n) { return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 }); }
+
+function loadSales() {
+  loadSalesStats();
+  loadOrders();
+}
+
+function loadSalesStats() {
+  api('/admin/orders/stats').then((stats) => {
+    document.getElementById('statTotalRevenue').textContent = money(stats.totalRevenue);
+    document.getElementById('statTotalOrders').textContent = stats.totalOrders;
+    document.getElementById('statTodayRevenue').textContent = money(stats.todayRevenue);
+    document.getElementById('statTodayOrders').textContent = stats.todayOrders;
+
+    const bestSellersBody = document.getElementById('bestSellersTable');
+    bestSellersBody.innerHTML = stats.bestSellers.length
+      ? stats.bestSellers.map((p) => '<tr><td>' + p.name + '</td><td>' + p.quantity + '</td><td>' + money(p.revenue) + '</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="3">No paid orders yet</td></tr>';
+
+    const fridgeSalesBody = document.getElementById('fridgeSalesTable');
+    fridgeSalesBody.innerHTML = stats.byFridge.length
+      ? stats.byFridge.map((f) => '<tr><td>' + f.name + '</td><td>' + f.orders + '</td><td>' + money(f.revenue) + '</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="3">No paid orders yet</td></tr>';
+  }).catch(() => {});
+}
+
+function loadOrders() {
+  const status = document.getElementById('orderStatusFilter').value;
+  const qs = status ? '?status=' + encodeURIComponent(status) : '';
+  api('/admin/orders' + qs).then((orders) => {
+    const tbody = document.getElementById('ordersTable');
+    const badgeClass = { PAID: 'badge-active', PENDING: 'badge-pending', FAILED: 'badge-failed', REFUNDED: 'badge-inactive', EXPIRED: 'badge-inactive' };
+    tbody.innerHTML = orders.length
+      ? orders.map((o) => (
+          '<tr><td>' + new Date(o.createdAt).toLocaleString() + '</td>' +
+          '<td>' + o.fridge.name + '</td>' +
+          '<td>' + o.customerName + '<br><span class="field-note" style="margin:0">' + o.customerPhone + '</span></td>' +
+          '<td>' + o.items.reduce((n, i) => n + i.quantity, 0) + '</td>' +
+          '<td>' + money(o.totalAmount) + '</td>' +
+          '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td></tr>'
+        )).join('')
+      : '<tr class="empty-row"><td colspan="6">No orders yet</td></tr>';
+  }).catch(() => {});
+}
+
+// ── Generic edit modal ───────────────────────────────
+const editState = { entityType: null, entityId: null, extraParam: null, fields: [] };
+let pendingEditImage = null;
+
+const EDIT_CONFIGS = {
+  category: (c) => [
+    { key: 'name', label: 'Name', type: 'text', value: c.name },
+  ],
+  fridge: (f) => [
+    { key: 'name', label: 'Name', type: 'text', value: f.name },
+    { key: 'location', label: 'Location', type: 'text', value: f.location || '' },
+    { key: 'isActive', label: 'Active', type: 'checkbox', value: f.isActive },
+  ],
+  product: (p) => [
+    { key: 'name', label: 'Name', type: 'text', value: p.name },
+    { key: 'categoryId', label: 'Category', type: 'select', value: p.categoryId, options: categoriesCache.map((c) => [c.id, c.name]) },
+    { key: 'mrp', label: 'MRP (₹)', type: 'number', value: p.mrp },
+    { key: 'sellingPrice', label: 'Selling price (₹)', type: 'number', value: p.sellingPrice },
+    { key: 'gstPercent', label: 'GST %', type: 'number', value: p.gstPercent },
+    { key: 'shelfLifeHours', label: 'Shelf life (hours)', type: 'number', value: p.shelfLifeHours },
+    { key: 'description', label: 'Description', type: 'text', value: p.description || '' },
+    { key: 'imageUrl', label: 'Photo', type: 'image', value: p.imageUrl || '' },
+    { key: 'isActive', label: 'Active', type: 'checkbox', value: p.isActive },
+  ],
+  batch: (b) => [
+    { key: 'status', label: 'Status', type: 'select', value: b.status, options: [['ACTIVE', 'Active'], ['EXPIRED', 'Expired'], ['RECALLED', 'Recalled']] },
+  ],
+  stock: (s) => [
+    { key: 'quantityAvailable', label: 'Available quantity', type: 'number', value: s.quantityAvailable },
+  ],
+};
+
+function findCurrent(entityType, entityId, extraParam) {
+  if (entityType === 'category') return categoriesCache.find((x) => x.id === entityId);
+  if (entityType === 'fridge') return fridgesCache.find((x) => x.id === entityId);
+  if (entityType === 'product') return productsCache.find((x) => x.id === entityId);
+  if (entityType === 'batch') return batchesCache.find((x) => x.id === entityId);
+  if (entityType === 'stock') return stockCache.find((x) => x.batch.id === entityId && x.fridgeId === extraParam);
+  return null;
+}
+
+function renderEditField(f) {
+  if (f.type === 'checkbox') {
+    return '<div class="field-row-checkbox"><input type="checkbox" id="edit_' + f.key + '" ' + (f.value ? 'checked' : '') + '><label>' + f.label + '</label></div>';
+  }
+  if (f.type === 'select') {
+    const opts = f.options.map((o) => '<option value="' + o[0] + '" ' + (o[0] === f.value ? 'selected' : '') + '>' + o[1] + '</option>').join('');
+    return '<label>' + f.label + '</label><select id="edit_' + f.key + '">' + opts + '</select>';
+  }
+  if (f.type === 'image') {
+    pendingEditImage = null;
+    return '<label>' + f.label + '</label><div class="img-upload">' +
+      '<img id="editImgPreview" class="img-preview' + (f.value ? '' : ' empty') + '" src="' + (f.value || '') + '">' +
+      '<input type="file" accept="image/*" onchange="handleEditImage(event)"></div>';
+  }
+  const escapedVal = String(f.value == null ? '' : f.value).replace(/"/g, '&quot;');
+  return '<label>' + f.label + '</label><input id="edit_' + f.key + '" type="' + f.type + '" value="' + escapedVal + '">';
+}
+
+function handleEditImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    img.onload = () => {
+      const maxDim = 800;
+      let w = img.width, h = img.height;
+      if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      pendingEditImage = canvas.toDataURL('image/jpeg', 0.82);
+      const preview = document.getElementById('editImgPreview');
+      preview.src = pendingEditImage;
+      preview.classList.remove('empty');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function openEditModal(entityType, entityId, extraParam) {
+  const current = findCurrent(entityType, entityId, extraParam);
+  if (!current) { alert('Could not find that record — try refreshing the page.'); return; }
+  editState.entityType = entityType;
+  editState.entityId = entityId;
+  editState.extraParam = extraParam || null;
+  editState.fields = EDIT_CONFIGS[entityType](current);
+  document.getElementById('editModalTitle').textContent = 'Edit ' + entityType;
+  document.getElementById('editModalFields').innerHTML = editState.fields.map(renderEditField).join('');
+  document.getElementById('editModalError').innerHTML = '';
+  document.getElementById('editModal').classList.remove('hidden');
+}
+
+function closeEditModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('editModal').classList.add('hidden');
+}
+
+function submitEdit() {
+  const body = {};
+  editState.fields.forEach((f) => {
+    if (f.type === 'image') { body[f.key] = pendingEditImage || undefined; return; }
+    const el = document.getElementById('edit_' + f.key);
+    if (f.type === 'checkbox') body[f.key] = el.checked;
+    else if (f.type === 'number') body[f.key] = parseFloat(el.value);
+    else body[f.key] = el.value;
+  });
+
+  const t = editState.entityType, id = editState.entityId;
+  let url;
+  if (t === 'category') url = '/admin/categories/' + id;
+  else if (t === 'fridge') url = '/admin/fridges/' + id;
+  else if (t === 'product') url = '/admin/products/' + id;
+  else if (t === 'batch') url = '/admin/batches/' + id;
+  else if (t === 'stock') url = '/admin/fridges/' + editState.extraParam + '/stock/' + id;
+
+  api(url, { method: 'PATCH', body: JSON.stringify(body) })
+    .then(() => {
+      closeEditModal();
+      refreshEntity(t);
+    })
+    .catch((e) => {
+      document.getElementById('editModalError').innerHTML = '<div class="error-msg">' + e.message + '</div>';
+    });
+}
+
+function refreshEntity(t) {
+  if (t === 'category') loadCategories();
+  else if (t === 'fridge') loadFridges();
+  else if (t === 'product') loadProducts();
+  else if (t === 'batch') loadBatches();
+  else if (t === 'stock') loadFridgeStock();
+}
+
+function deleteEntity(entityType, id, label, extraParam) {
+  if (!confirm('Delete ' + label + '? This can\'t be undone.')) return;
+
+  let url;
+  if (entityType === 'category') url = '/admin/categories/' + id;
+  else if (entityType === 'fridge') url = '/admin/fridges/' + id;
+  else if (entityType === 'product') url = '/admin/products/' + id;
+  else if (entityType === 'batch') url = '/admin/batches/' + id;
+  else if (entityType === 'stock') url = '/admin/fridges/' + extraParam + '/stock/' + id;
+
+  api(url, { method: 'DELETE' })
+    .then(() => refreshEntity(entityType))
+    .catch((e) => alert(e.message));
+}
+
+// ── Customers ────────────────────────────────────────
+let customersCache = [];
+
+function loadCustomers() {
+  api('/admin/customers').then((customers) => {
+    customersCache = customers;
+    renderCustomers();
+  }).catch(() => {});
+}
+
+function renderCustomers() {
+  const sortBy = document.getElementById('customerSort').value;
+  const sorted = customersCache.slice().sort((a, b) => {
+    if (sortBy === 'orders') return b.totalOrders - a.totalOrders;
+    if (sortBy === 'recent') return new Date(b.lastOrderAt) - new Date(a.lastOrderAt);
+    return b.totalSpent - a.totalSpent;
+  });
+
+  const freqBadge = { New: 'badge-inactive', Frequent: 'badge-active', Regular: 'badge-pending', Occasional: 'badge-inactive' };
+  const tbody = document.getElementById('customersTable');
+  tbody.innerHTML = sorted.length ? sorted.map((c) => (
+    '<tr class="customer-row" onclick="openCustomerHistory(\'' + encodeURIComponent(c.phone) + '\',\'' + escQ(c.name) + '\')">' +
+    '<td>' + c.name + '</td><td>' + c.phone + '</td><td>' + c.totalOrders + '</td>' +
+    '<td>' + money(c.totalSpent) + '</td><td>' + new Date(c.lastOrderAt).toLocaleDateString() + '</td>' +
+    '<td><span class="badge ' + (freqBadge[c.frequencyLabel] || 'badge-inactive') + '">' + c.frequencyLabel + '</span></td></tr>'
+  )).join('') : '<tr class="empty-row"><td colspan="6">No paid orders yet</td></tr>';
+}
+
+function openCustomerHistory(phoneEncoded, name) {
+  const phone = decodeURIComponent(phoneEncoded);
+  document.getElementById('customerModalTitle').textContent = name + ' — order history';
+  document.getElementById('customerOrdersTable').innerHTML = '<tr><td colspan="5">Loading…</td></tr>';
+  document.getElementById('customerModal').classList.remove('hidden');
+
+  const badgeClass = { PAID: 'badge-active', PENDING: 'badge-pending', FAILED: 'badge-failed', REFUNDED: 'badge-inactive', EXPIRED: 'badge-inactive' };
+  api('/admin/customers/' + encodeURIComponent(phone)).then((orders) => {
+    document.getElementById('customerOrdersTable').innerHTML = orders.length ? orders.map((o) => (
+      '<tr><td>' + new Date(o.createdAt).toLocaleDateString() + '</td><td>' + o.fridge.name + '</td>' +
+      '<td>' + o.items.reduce((n, i) => n + i.quantity, 0) + '</td><td>' + money(o.totalAmount) + '</td>' +
+      '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td></tr>'
+    )).join('') : '<tr><td colspan="5">No orders found</td></tr>';
+  }).catch((e) => {
+    document.getElementById('customerOrdersTable').innerHTML = '<tr><td colspan="5">' + e.message + '</td></tr>';
+  });
+}
+
+function closeCustomerModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('customerModal').classList.add('hidden');
 }
 </script>
 </body>
