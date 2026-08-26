@@ -468,7 +468,7 @@
 <!-- Populated just before window.print() and hidden otherwise; see printQrSheet() -->
 <div id="printArea"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js"></script>
 <script>
 const state = { accessToken: null, role: null, name: null };
 
@@ -848,13 +848,22 @@ function renderQrModal(title, text, showCopies, defaultQty) {
   document.getElementById('qrCopiesRow').classList.toggle('hidden', !showCopies);
   if (showCopies) document.getElementById('qrCopiesInput').value = defaultQty || 1;
 
-  QRCode.toDataURL(text, { width: 400, margin: 1, color: { dark: '#1B5E20', light: '#FFFFFF' } })
-    .then((dataUrl) => {
-      qrState.dataUrl = dataUrl;
-      document.getElementById('qrModalImg').src = dataUrl;
-      document.getElementById('qrModal').classList.remove('hidden');
-    })
-    .catch(() => alert('Could not generate QR code'));
+  if (typeof qrcode === 'undefined') {
+    alert('QR library failed to load — check your internet connection and try again.');
+    return;
+  }
+
+  try {
+    const qr = qrcode(0, 'M'); // 0 = auto type-number (size), M = medium error correction
+    qr.addData(text);
+    qr.make();
+    const dataUrl = qr.createDataURL(8, 12); // cellSize, margin — ~300-400px depending on data length
+    qrState.dataUrl = dataUrl;
+    document.getElementById('qrModalImg').src = dataUrl;
+    document.getElementById('qrModal').classList.remove('hidden');
+  } catch (e) {
+    alert('Could not generate QR code: ' + e.message);
+  }
 }
 
 function closeQrModal(event) {

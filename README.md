@@ -125,7 +125,8 @@ then on. From there:
   there's also a "copies to print" field (defaults to the quantity you
   just allocated) that lays out a grid of that many QR + label cards on
   one print job, sized for adhesive label sheets. Generated entirely in
-  the browser (the `qrcode` library, from a CDN) — no server round-trip,
+  the browser (the `qrcode-generator` library, from a CDN) — no server
+  round-trip,
   no third-party QR service seeing your codes.
 - **Stock**, and (as ADMIN)
 create additional staff logins — all without touching curl/Postman.
