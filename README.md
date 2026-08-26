@@ -114,6 +114,19 @@ then on. From there:
   stock to the chosen fridge in the same step, so there's no separate
   "allocate stock" click for a brand-new batch (that's still there for
   topping up an *existing* batch at another fridge, or restocking later).
+  Immediately after creating a batch, its QR modal opens automatically —
+  see below.
+- **QR codes** — every fridge and batch row has a **QR** button. Fridge
+  QRs encode a link (`<your domain>/shop?fridge=<code>`) — this is what
+  goes on the fridge itself, so scanning it with a phone camera opens the
+  customer PWA directly, no app needed. Batch QRs encode just the raw
+  batch code (what the PWA's in-app scanner reads to add it to a cart).
+  Each QR modal offers **Download PNG** and **Print** — for batches,
+  there's also a "copies to print" field (defaults to the quantity you
+  just allocated) that lays out a grid of that many QR + label cards on
+  one print job, sized for adhesive label sheets. Generated entirely in
+  the browser (the `qrcode` library, from a CDN) — no server round-trip,
+  no third-party QR service seeing your codes.
 - **Stock**, and (as ADMIN)
 create additional staff logins — all without touching curl/Postman.
 
@@ -210,9 +223,52 @@ Razorpay webhook locally with their CLI or a signed test payload.
    `https://<your-railway-domain>/api/payments/webhook`, subscribed to
    `payment.captured` and `payment.failed`.
 
+## Customer PWA
+
+Served at **`/shop`** (e.g. `https://pos.saladcaffe.com/shop?fridge=<code>`)
+— a plain HTML/JS/CSS app, no build step, no login. Each fridge's printed
+QR sticker just links to its own `?fridge=` code.
+
+- **Scan** — opens straight to the camera (via the `html5-qrcode` library
+  from a CDN) with a live scan frame. Each successful scan shows a brief
+  full-screen flash (product photo + name) and a phone vibration, then
+  keeps scanning — no need to close/reopen the camera between items.
+  Scanning the same code again within 2 seconds is ignored, so an
+  accidental double-read of one sticker doesn't double-add it.
+- **Manual code entry** — a fallback link is always visible in case the
+  camera is denied, slow, or the sticker is damaged.
+- **Cart** — a bottom sheet with live quantity controls and totals,
+  reflecting exactly what the server has (never trusts client-side math).
+- **Checkout** — collects name + phone (mandatory, per the backend),
+  then opens Razorpay's own hosted Checkout popup.
+- **Payment confirmation** — after Razorpay's popup reports success
+  client-side, the app shows "Confirming your payment…" and polls
+  `GET /api/orders/:id` every 2s until the *webhook* has actually marked
+  it `PAID` — the same principle the backend already enforces (never
+  trust the client alone) carried through to the UI. Falls back to a
+  "still confirming" message after ~40s rather than spinning forever.
+- **Installable** — a manifest + minimal service worker let a repeat
+  customer "Add to Home Screen." The service worker only caches the
+  static shell for faster repeat loads; it deliberately never caches
+  `/api/` calls, since this is a live-payment app where correctness
+  matters far more than offline support.
+- **Session reuse** — the session id from `POST /api/sessions` is saved
+  in `localStorage` per fridge code, so reopening the page (or the
+  installed app) within the 20-minute session window continues the same
+  cart instead of starting over.
+
+Icons at `public/shop/icons/` are placeholders (a green square with "SC")
+— swap in real exported icons whenever you have brand assets ready.
+
+**Bug fixed while building this:** a failed payment used to permanently
+block any further checkout attempt on that session, because the `FAILED`
+order row stayed in place and the unique constraint on `Order.sessionId`
+rejected a second one. Checkout now clears a `FAILED` order and creates a
+fresh attempt, so a declined card or cancelled payment popup is retryable.
+
 ## Not in Phase 1 (next phases, on request)
 
-- Customer PWA (React/Vite/Tailwind) and Kitchen/Admin console
+- Kitchen/admin console beyond what's in `/admin` today
 - Corporate wallet + monthly billing
 - Loyalty/coupons
 - Analytics dashboards

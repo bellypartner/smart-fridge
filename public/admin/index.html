@@ -177,6 +177,44 @@
     border-radius: 8px; font-family: monospace; font-size: 13px; color: var(--primary); word-break: break-all;
   }
   .code-preview .label { display: block; font-family: 'Inter', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--body); margin-bottom: 4px; }
+
+  .qr-btn {
+    background: var(--white); border: 1.5px solid var(--border); color: var(--primary);
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .qr-btn:hover { border-color: var(--secondary); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(31,41,55,0.55); z-index: 50;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .qr-modal-card {
+    background: var(--white); border-radius: 20px; padding: 28px; width: 100%; max-width: 360px; text-align: center;
+  }
+  .qr-modal-card h3 { font-size: 16px; margin: 0 0 4px; }
+  .qr-modal-sub { font-size: 12px; color: var(--body); margin-bottom: 18px; word-break: break-all; }
+  .qr-modal-card img { width: 220px; height: 220px; border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--white); }
+  .qr-modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .qr-modal-actions button { flex: 1; }
+  .qr-copies-row { display: flex; align-items: center; gap: 10px; justify-content: center; margin: 14px 0 4px; }
+  .qr-copies-row input { width: 70px; text-align: center; }
+  .qr-copies-row label { margin: 0; }
+
+  #printArea { display: none; }
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block !important; }
+    .print-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    }
+    .print-label {
+      border: 1px dashed #999; border-radius: 8px; padding: 10px; text-align: center;
+      break-inside: avoid; page-break-inside: avoid;
+    }
+    .print-label img { width: 100%; max-width: 140px; }
+    .print-label .pl-product { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 11px; margin-top: 4px; }
+    .print-label .pl-code { font-family: monospace; font-size: 9px; color: #333; word-break: break-all; }
+  }
 </style>
 </head>
 <body>
@@ -253,8 +291,8 @@
         <div class="card">
           <h3>All fridges</h3>
           <table>
-            <thead><tr><th>Code</th><th>Name</th><th>Location</th><th>Status</th></tr></thead>
-            <tbody id="fridgesTable"><tr class="empty-row"><td colspan="4">No fridges yet</td></tr></tbody>
+            <thead><tr><th>Code</th><th>Name</th><th>Location</th><th>Status</th><th></th></tr></thead>
+            <tbody id="fridgesTable"><tr class="empty-row"><td colspan="5">No fridges yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -343,8 +381,8 @@
         <div class="card">
           <h3>All batches</h3>
           <table>
-            <thead><tr><th>Batch code</th><th>Product</th><th>Expires</th><th>Status</th></tr></thead>
-            <tbody id="batchesTable"><tr class="empty-row"><td colspan="4">No batches yet</td></tr></tbody>
+            <thead><tr><th>Batch code</th><th>Product</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+            <tbody id="batchesTable"><tr class="empty-row"><td colspan="5">No batches yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -409,6 +447,28 @@
   </div>
 </div>
 
+<!-- ═══════════════ QR MODAL ═══════════════ -->
+<div id="qrModal" class="modal-backdrop hidden" onclick="closeQrModal(event)">
+  <div class="qr-modal-card" onclick="event.stopPropagation()">
+    <h3 id="qrModalTitle">QR code</h3>
+    <div class="qr-modal-sub" id="qrModalSub">—</div>
+    <img id="qrModalImg" alt="QR code" />
+    <div class="qr-copies-row hidden" id="qrCopiesRow">
+      <label for="qrCopiesInput">Copies to print</label>
+      <input id="qrCopiesInput" type="number" value="1" min="1" max="200" />
+    </div>
+    <div class="qr-modal-actions">
+      <button class="btn-ghost-full" style="margin:0" onclick="closeQrModal()">Close</button>
+      <button class="qr-btn" onclick="downloadQr()">Download PNG</button>
+      <button class="btn-cta" style="margin:0" onclick="printQrSheet()">Print</button>
+    </div>
+  </div>
+</div>
+
+<!-- Populated just before window.print() and hidden otherwise; see printQrSheet() -->
+<div id="printArea"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script>
 const state = { accessToken: null, role: null, name: null };
 
@@ -514,8 +574,9 @@ function loadFridges() {
     const tbody = document.getElementById('fridgesTable');
     tbody.innerHTML = fridges.length ? fridges.map((f) => (
       '<tr><td>' + f.code + '</td><td>' + f.name + '</td><td>' + (f.location || '—') + '</td>' +
-      '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="4">No fridges yet</td></tr>';
+      '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td>' +
+      '<td><button class="qr-btn" onclick="openFridgeQr(\'' + f.code.replace(/'/g, "\\'") + '\', \'' + f.name.replace(/'/g, "\\'") + '\')">QR</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="5">No fridges yet</td></tr>';
 
     const stockSel = document.getElementById('stockFridge');
     stockSel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
@@ -676,8 +737,9 @@ function loadBatches() {
     const tbody = document.getElementById('batchesTable');
     tbody.innerHTML = batches.length ? batches.map((b) => (
       '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
-      '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="4">No batches yet</td></tr>';
+      '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td>' +
+      '<td><button class="qr-btn" onclick="openBatchQr(\'' + b.batchCode.replace(/'/g, "\\'") + '\', \'' + b.product.name.replace(/'/g, "\\'") + '\')">QR</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="5">No batches yet</td></tr>';
 
     const sel = document.getElementById('stockBatch');
     sel.innerHTML = '<option value="">Select a batch…</option>' + batches.map((b) => '<option value="' + b.id + '">' + b.batchCode + ' (' + b.product.name + ')</option>').join('');
@@ -694,13 +756,14 @@ function createBatch() {
   if (!body.fridgeId || !body.productId || !body.manufacturedAt || !body.quantity) {
     alert('Fridge, product, manufactured date, and quantity are all required'); return;
   }
+  const productName = document.getElementById('batchProduct').selectedOptions[0].dataset.name;
   api('/admin/batches', { method: 'POST', body: JSON.stringify(body) })
     .then((result) => {
       document.getElementById('batchMfg').value = '';
       document.getElementById('batchQty').value = '';
       updateBatchCodePreview();
       loadBatches();
-      alert('Batch created: ' + result.batch.batchCode);
+      openBatchQr(result.batch.batchCode, productName, body.quantity);
     })
     .catch((e) => alert(e.message));
 }
@@ -755,6 +818,66 @@ function createStaff() {
       document.getElementById('staffPassword').value = '';
     })
     .catch((e) => alert(e.message));
+}
+
+// ── QR codes ─────────────────────────────────────────
+// qrState holds whatever the modal is currently showing, so Download/Print
+// know what to act on without threading it through every call site.
+const qrState = { text: null, label: null, sub: null, isBatch: false, dataUrl: null };
+
+function openFridgeQr(code, name) {
+  const url = location.origin + '/shop?fridge=' + encodeURIComponent(code);
+  qrState.text = url;
+  qrState.label = name;
+  qrState.sub = url;
+  qrState.isBatch = false;
+  renderQrModal('Fridge QR — ' + name, url, false);
+}
+
+function openBatchQr(batchCode, productName, defaultQty) {
+  qrState.text = batchCode;
+  qrState.label = productName;
+  qrState.sub = batchCode;
+  qrState.isBatch = true;
+  renderQrModal('Batch QR — ' + productName, batchCode, true, defaultQty);
+}
+
+function renderQrModal(title, text, showCopies, defaultQty) {
+  document.getElementById('qrModalTitle').textContent = title;
+  document.getElementById('qrModalSub').textContent = text;
+  document.getElementById('qrCopiesRow').classList.toggle('hidden', !showCopies);
+  if (showCopies) document.getElementById('qrCopiesInput').value = defaultQty || 1;
+
+  QRCode.toDataURL(text, { width: 400, margin: 1, color: { dark: '#1B5E20', light: '#FFFFFF' } })
+    .then((dataUrl) => {
+      qrState.dataUrl = dataUrl;
+      document.getElementById('qrModalImg').src = dataUrl;
+      document.getElementById('qrModal').classList.remove('hidden');
+    })
+    .catch(() => alert('Could not generate QR code'));
+}
+
+function closeQrModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('qrModal').classList.add('hidden');
+}
+
+function downloadQr() {
+  if (!qrState.dataUrl) return;
+  const a = document.createElement('a');
+  a.href = qrState.dataUrl;
+  a.download = (qrState.isBatch ? qrState.sub : qrState.label.replace(/\s+/g, '-')) + '.png';
+  a.click();
+}
+
+function printQrSheet() {
+  if (!qrState.dataUrl) return;
+  const copies = qrState.isBatch ? Math.max(1, parseInt(document.getElementById('qrCopiesInput').value, 10) || 1) : 1;
+  const label = '<div class="print-label"><img src="' + qrState.dataUrl + '">' +
+    '<div class="pl-product">' + qrState.label + '</div>' +
+    '<div class="pl-code">' + qrState.sub + '</div></div>';
+  document.getElementById('printArea').innerHTML = '<div class="print-grid">' + label.repeat(copies) + '</div>';
+  window.print();
 }
 </script>
 </body>

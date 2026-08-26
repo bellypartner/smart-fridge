@@ -18,7 +18,14 @@ export const checkout = async (sessionId: string, customerName: string, customer
   const existingOrder = await prisma.order.findUnique({ where: { sessionId } });
   if (existingOrder) {
     if (existingOrder.status === "PENDING") return existingOrder;
-    throw ApiError.conflict("This session already has a completed order", "ORDER_ALREADY_EXISTS");
+    if (existingOrder.status === "FAILED") {
+      // A failed payment shouldn't lock the customer out of trying again —
+      // clear the failed attempt (cascades to its OrderItems) and fall through
+      // to create a fresh order below.
+      await prisma.order.delete({ where: { id: existingOrder.id } });
+    } else {
+      throw ApiError.conflict("This session already has a completed order", "ORDER_ALREADY_EXISTS");
+    }
   }
 
   const totalPaise = Math.round(Number(total) * 100);

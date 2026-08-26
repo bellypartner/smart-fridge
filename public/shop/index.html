@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Salad Caffe — Smart Fridge</title>
+<link rel="manifest" href="/shop/manifest.json" />
+<meta name="theme-color" content="#1B5E20" />
+<link rel="apple-touch-icon" href="/shop/icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #1B5E20;
+    --secondary: #43A047;
+    --accent: #8BC34A;
+    --cta: #FF7A00;
+    --heading: #1F2937;
+    --body: #4B5563;
+    --bg: #FAFAF7;
+    --white: #FFFFFF;
+    --danger: #C0392B;
+    --border: #E5E1D8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    font-family: 'Inter', sans-serif; color: var(--body); background: #000;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .brand { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--heading); }
+  button {
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 15px;
+    border: none; border-radius: 14px; cursor: pointer;
+  }
+  button:active { transform: scale(0.98); }
+  input {
+    width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 12px;
+    font-family: 'Inter', sans-serif; font-size: 15px; color: var(--heading); background: var(--white);
+    outline: none;
+  }
+  input:focus { border-color: var(--secondary); }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--heading); margin: 14px 0 6px; }
+  .btn-cta { width: 100%; padding: 16px; background: var(--cta); color: var(--white); font-size: 16px; }
+  .btn-cta:disabled { background: #D8D3C8; color: #9A9488; }
+  .btn-ghost-full { width: 100%; padding: 14px; background: transparent; color: var(--body); margin-top: 8px; }
+  .hidden { display: none !important; }
+
+  /* ── Scanner screen ── */
+  #scannerScreen { position: fixed; inset: 0; background: #000; }
+  #qrReader { position: absolute; inset: 0; }
+  #qrReader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+  /* html5-qrcode injects its own scan-region box/border; keep our own frame subtle on top */
+  .scan-frame {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%);
+    width: 240px; height: 240px; border-radius: 24px;
+    box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);
+    border: 2.5px solid rgba(255,255,255,0.85);
+    pointer-events: none;
+  }
+  .topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 14px;
+    background: linear-gradient(rgba(0,0,0,0.55), transparent);
+    display: flex; align-items: center; gap: 8px; z-index: 5;
+  }
+  .topbar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cta); }
+  .topbar .fridge-name { color: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; }
+  .scan-hint {
+    position: absolute; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.85);
+    font-size: 13px; top: calc(50% + 145px);
+  }
+  .manual-entry-link {
+    position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); left: 0; right: 0;
+    text-align: center; color: rgba(255,255,255,0.9); font-size: 13px; text-decoration: underline;
+    z-index: 5;
+  }
+
+  .scan-flash {
+    position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    background: rgba(27, 94, 32, 0.92); color: var(--white);
+    animation: flashIn 0.18s ease-out;
+  }
+  .scan-flash.error { background: rgba(192, 57, 43, 0.92); }
+  @keyframes flashIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+  .scan-flash img { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; border: 2px solid rgba(255,255,255,0.5); }
+  .scan-flash .check {
+    width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center; font-size: 28px;
+  }
+  .scan-flash .flash-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 17px; }
+  .scan-flash .flash-sub { font-size: 13px; opacity: 0.85; }
+
+  .cart-bar {
+    position: absolute; left: 16px; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    background: var(--white); border-radius: 18px; padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 6;
+  }
+  .cart-bar .count { font-size: 14px; color: var(--body); }
+  .cart-bar .count b { color: var(--heading); }
+  .cart-bar .total { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 17px; color: var(--primary); }
+  .cart-bar .view-link { font-size: 13px; color: var(--cta); font-weight: 600; margin-left: 10px; }
+
+  /* ── Bottom sheets ── */
+  .sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 20;
+  }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+    background: var(--bg); border-radius: 24px 24px 0 0;
+    padding: 12px 20px calc(env(safe-area-inset-bottom, 0px) + 20px);
+    max-height: 82vh; overflow-y: auto;
+    animation: sheetUp 0.22s cubic-bezier(.2,.9,.3,1);
+  }
+  @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .sheet-handle { width: 40px; height: 4px; background: var(--border); border-radius: 4px; margin: 6px auto 14px; }
+  .sheet h2 { font-size: 19px; margin: 0 0 16px; }
+
+  .cart-line {
+    display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .cart-line img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; background: var(--white); flex-shrink: 0; }
+  .cart-line .info { flex: 1; min-width: 0; }
+  .cart-line .name { font-size: 14px; font-weight: 600; color: var(--heading); }
+  .cart-line .price { font-size: 12px; color: var(--body); }
+  .qty-control { display: flex; align-items: center; gap: 10px; }
+  .qty-control button {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--white); border: 1.5px solid var(--border);
+    color: var(--primary); font-size: 16px; font-weight: 700; padding: 0; line-height: 1;
+  }
+  .qty-control .qty-val { font-size: 14px; font-weight: 600; color: var(--heading); min-width: 16px; text-align: center; }
+
+  .totals-block { margin-top: 14px; padding-top: 14px; border-top: 1.5px solid var(--border); }
+  .totals-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: var(--body); }
+  .totals-row.grand { font-size: 17px; font-weight: 800; color: var(--heading); font-family: 'Plus Jakarta Sans', sans-serif; padding-top: 8px; }
+
+  .empty-cart { text-align: center; padding: 30px 0; color: var(--body); font-size: 14px; }
+
+  .error-msg {
+    background: #FDEDEC; color: var(--danger); border: 1px solid #F5B7B1;
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 12px;
+  }
+
+  /* ── Manual entry modal ── */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+  .modal-card { background: var(--white); border-radius: 20px 20px 0 0; padding: 24px 20px calc(env(safe-area-inset-bottom, 0px) + 20px); width: 100%; max-width: 480px; }
+  .modal-card h3 { font-size: 17px; margin: 0 0 4px; }
+  .modal-card .modal-sub { font-size: 13px; color: var(--body); margin-bottom: 14px; }
+
+  /* ── Full overlays: confirming / success / no-fridge ── */
+  .full-overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 40;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 30px; text-align: center;
+  }
+  .spinner {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 4px solid var(--border); border-top-color: var(--primary);
+    animation: spin 0.8s linear infinite; margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .success-check {
+    width: 74px; height: 74px; border-radius: 50%; background: var(--primary); color: var(--white);
+    display: flex; align-items: center; justify-content: center; font-size: 36px; margin-bottom: 18px;
+  }
+  .full-overlay h2 { margin: 0 0 6px; }
+  .full-overlay p { font-size: 14px; margin: 0 0 4px; }
+  .receipt-card { background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 18px; width: 100%; max-width: 380px; margin: 18px 0; text-align: left; }
+  .receipt-line { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; color: var(--body); }
+  .receipt-line .n { color: var(--heading); }
+  .order-id-note { font-size: 11px; color: var(--body); word-break: break-all; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SCANNER SCREEN ═══════════════ -->
+<div id="scannerScreen">
+  <div id="qrReader"></div>
+  <div class="scan-frame"></div>
+  <div class="scan-hint">Point at a product's QR code</div>
+
+  <div class="topbar">
+    <span class="dot"></span>
+    <span class="fridge-name" id="fridgeNameLabel">Loading…</span>
+  </div>
+
+  <div class="manual-entry-link" onclick="openManualEntry()">Can't scan? Enter the code</div>
+
+  <div id="scanFlash" class="scan-flash hidden"></div>
+
+  <div id="cartBar" class="cart-bar hidden" onclick="openCart()">
+    <span class="count"><b id="cartBarCount">0</b> item(s)</span>
+    <span><span class="total" id="cartBarTotal">₹0</span><span class="view-link">View cart</span></span>
+  </div>
+</div>
+
+<!-- ═══════════════ CART SHEET ═══════════════ -->
+<div id="cartOverlay" class="hidden">
+  <div class="sheet-backdrop" onclick="closeCart()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Your cart</h2>
+    <div id="cartItemsList"></div>
+    <div class="totals-block" id="cartTotalsBlock"></div>
+    <button class="btn-cta" style="margin-top:18px" onclick="goToCheckout()" id="checkoutBtn">Checkout</button>
+    <button class="btn-ghost-full" onclick="closeCart()">Keep scanning</button>
+  </div>
+</div>
+
+<!-- ═══════════════ CHECKOUT SHEET ═══════════════ -->
+<div id="checkoutOverlay" class="hidden">
+  <div class="sheet-backdrop" onclick="backToCart()"></div>
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Checkout</h2>
+    <label for="checkoutName">Name</label>
+    <input id="checkoutName" placeholder="Your name" />
+    <label for="checkoutPhone">Phone number</label>
+    <input id="checkoutPhone" type="tel" placeholder="98765 43210" maxlength="10" />
+    <div class="totals-block">
+      <div class="totals-row grand"><span>Total to pay</span><span id="checkoutAmountLabel">₹0</span></div>
+    </div>
+    <div id="checkoutError"></div>
+    <button class="btn-cta" style="margin-top:18px" onclick="submitCheckout()" id="payBtn">Pay now</button>
+    <button class="btn-ghost-full" onclick="backToCart()">Back to cart</button>
+  </div>
+</div>
+
+<!-- ═══════════════ MANUAL ENTRY MODAL ═══════════════ -->
+<div id="manualEntryModal" class="hidden">
+  <div class="modal-backdrop" onclick="closeManualEntry()"></div>
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <h3>Enter product code</h3>
+    <div class="modal-sub">Type the code printed under the QR sticker.</div>
+    <input id="manualCodeInput" placeholder="e.g. SC-FRIDGE-001-CHISAL-260825" />
+    <div id="manualEntryError"></div>
+    <button class="btn-cta" style="margin-top:14px" onclick="submitManualCode()">Add to cart</button>
+    <button class="btn-ghost-full" onclick="closeManualEntry()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════ CONFIRMING PAYMENT ═══════════════ -->
+<div id="confirmingScreen" class="full-overlay hidden">
+  <div class="spinner"></div>
+  <h2>Confirming your payment</h2>
+  <p id="confirmingSub">This usually takes a few seconds…</p>
+</div>
+
+<!-- ═══════════════ SUCCESS / RECEIPT ═══════════════ -->
+<div id="successScreen" class="full-overlay hidden">
+  <div class="success-check">✓</div>
+  <h2>Payment successful</h2>
+  <p>Enjoy your order!</p>
+  <div class="receipt-card" id="receiptCard"></div>
+  <button class="btn-cta" style="max-width:380px" onclick="startNewOrder()">Done</button>
+</div>
+
+<!-- ═══════════════ NO FRIDGE / ERROR STATE ═══════════════ -->
+<div id="noFridgeScreen" class="full-overlay hidden">
+  <h2>Scan a fridge to get started</h2>
+  <p>Open this page from the QR code on a Salad Caffe smart fridge.</p>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+const state = {
+  fridgeCode: null,
+  fridgeName: null,
+  sessionId: null,
+  cart: null, // full cart response from server
+  lastScan: { code: null, at: 0 },
+  scanner: null,
+  pollTimer: null,
+};
+
+function api(path, opts = {}) {
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  return fetch('/api' + path, Object.assign({}, opts, { headers }))
+    .then(async (res) => {
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((body.error && body.error.message) || 'Something went wrong');
+      return body;
+    });
+}
+
+// ── Boot ─────────────────────────────────────────────
+(function init() {
+  const params = new URLSearchParams(location.search);
+  const fridgeFromUrl = params.get('fridge');
+  const fridgeFromStorage = localStorage.getItem('sf_fridgeCode');
+  state.fridgeCode = fridgeFromUrl || fridgeFromStorage;
+
+  if (!state.fridgeCode) {
+    document.getElementById('noFridgeScreen').classList.remove('hidden');
+    return;
+  }
+
+  localStorage.setItem('sf_fridgeCode', state.fridgeCode);
+
+  api('/fridges/' + encodeURIComponent(state.fridgeCode))
+    .then((fridge) => {
+      state.fridgeName = fridge.name;
+      document.getElementById('fridgeNameLabel').textContent = fridge.name;
+      return resumeOrCreateSession();
+    })
+    .then(() => {
+      startScanner();
+      refreshCart();
+    })
+    .catch((e) => {
+      document.getElementById('fridgeNameLabel').textContent = 'Unavailable';
+      showFlash('error', null, 'Fridge unavailable', e.message);
+    });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/shop/sw.js').catch(() => {});
+  }
+})();
+
+function resumeOrCreateSession() {
+  const savedId = localStorage.getItem('sf_sessionId_' + state.fridgeCode);
+  if (savedId) {
+    return api('/sessions/' + savedId + '/cart')
+      .then(() => { state.sessionId = savedId; })
+      .catch(() => createSession());
+  }
+  return createSession();
+}
+
+function createSession() {
+  return api('/sessions', { method: 'POST', body: JSON.stringify({ fridgeCode: state.fridgeCode }) })
+    .then((session) => {
+      state.sessionId = session.id;
+      localStorage.setItem('sf_sessionId_' + state.fridgeCode, session.id);
+    });
+}
+
+// ── Scanner ──────────────────────────────────────────
+function startScanner() {
+  state.scanner = new Html5Qrcode('qrReader');
+  state.scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    (decodedText) => handleScan(decodedText.trim()),
+    () => {} // ignore per-frame "no code found" noise
+  ).catch(() => {
+    // camera denied/unavailable — manual entry is always visible as the fallback
+  });
+}
+
+function handleScan(code) {
+  const now = Date.now();
+  if (code === state.lastScan.code && now - state.lastScan.at < 2000) return; // debounce accidental double-read
+  state.lastScan = { code, at: now };
+  scanBatch(code);
+}
+
+function scanBatch(code) {
+  if (!state.sessionId) return;
+  api('/sessions/' + state.sessionId + '/scan', { method: 'POST', body: JSON.stringify({ batchCode: code }) })
+    .then((result) => {
+      if (navigator.vibrate) navigator.vibrate(60);
+      showFlash('ok', result.product.imageUrl, result.product.name, 'Added to cart');
+      refreshCart();
+    })
+    .catch((e) => {
+      if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+      showFlash('error', null, 'Not added', e.message);
+    });
+}
+
+function showFlash(kind, imageUrl, title, sub) {
+  const el = document.getElementById('scanFlash');
+  el.className = 'scan-flash' + (kind === 'error' ? ' error' : '');
+  el.innerHTML =
+    (imageUrl ? '<img src="' + imageUrl + '">' : '<div class="check">' + (kind === 'error' ? '!' : '✓') + '</div>') +
+    '<div class="flash-name">' + title + '</div>' +
+    '<div class="flash-sub">' + sub + '</div>';
+  el.classList.remove('hidden');
+  clearTimeout(showFlash._t);
+  showFlash._t = setTimeout(() => el.classList.add('hidden'), 900);
+}
+
+// ── Manual entry fallback ────────────────────────────
+function openManualEntry() {
+  document.getElementById('manualEntryError').innerHTML = '';
+  document.getElementById('manualCodeInput').value = '';
+  document.getElementById('manualEntryModal').classList.remove('hidden');
+}
+function closeManualEntry() {
+  document.getElementById('manualEntryModal').classList.add('hidden');
+}
+function submitManualCode() {
+  const code = document.getElementById('manualCodeInput').value.trim();
+  if (!code) return;
+  api('/sessions/' + state.sessionId + '/scan', { method: 'POST', body: JSON.stringify({ batchCode: code }) })
+    .then((result) => {
+      closeManualEntry();
+      if (navigator.vibrate) navigator.vibrate(60);
+      showFlash('ok', result.product.imageUrl, result.product.name, 'Added to cart');
+      refreshCart();
+    })
+    .catch((e) => {
+      document.getElementById('manualEntryError').innerHTML = '<div class="error-msg">' + e.message + '</div>';
+    });
+}
+
+// ── Cart ─────────────────────────────────────────────
+function refreshCart() {
+  api('/sessions/' + state.sessionId + '/cart').then((cart) => {
+    state.cart = cart;
+    const count = cart.items.reduce((n, i) => n + i.quantity, 0);
+    document.getElementById('cartBarCount').textContent = count;
+    document.getElementById('cartBarTotal').textContent = '₹' + Number(cart.total).toFixed(0);
+    document.getElementById('cartBar').classList.toggle('hidden', count === 0);
+    renderCartSheet();
+  }).catch(() => {});
+}
+
+function renderCartSheet() {
+  const cart = state.cart;
+  const list = document.getElementById('cartItemsList');
+  if (!cart || cart.items.length === 0) {
+    list.innerHTML = '<div class="empty-cart">Nothing scanned yet — point your camera at a product\u2019s QR code.</div>';
+    document.getElementById('cartTotalsBlock').innerHTML = '';
+    document.getElementById('checkoutBtn').disabled = true;
+    return;
+  }
+  document.getElementById('checkoutBtn').disabled = false;
+  list.innerHTML = cart.items.map((item) => (
+    '<div class="cart-line">' +
+    (item.batch.product.imageUrl ? '<img src="' + item.batch.product.imageUrl + '">' : '<img>') +
+    '<div class="info"><div class="name">' + item.batch.product.name + '</div>' +
+    '<div class="price">₹' + item.unitPrice + ' each</div></div>' +
+    '<div class="qty-control">' +
+    '<button onclick="changeQty(\'' + item.id + '\', ' + (item.quantity - 1) + ')">−</button>' +
+    '<span class="qty-val">' + item.quantity + '</span>' +
+    '<button onclick="changeQty(\'' + item.id + '\', ' + (item.quantity + 1) + ')">+</button>' +
+    '</div></div>'
+  )).join('');
+
+  document.getElementById('cartTotalsBlock').innerHTML =
+    '<div class="totals-row"><span>Subtotal</span><span>₹' + Number(cart.subtotal).toFixed(2) + '</span></div>' +
+    '<div class="totals-row"><span>GST</span><span>₹' + Number(cart.gstAmount).toFixed(2) + '</span></div>' +
+    '<div class="totals-row grand"><span>Total</span><span>₹' + Number(cart.total).toFixed(2) + '</span></div>';
+}
+
+function changeQty(itemId, quantity) {
+  api('/sessions/' + state.sessionId + '/cart/' + itemId, { method: 'PATCH', body: JSON.stringify({ quantity: Math.max(0, quantity) }) })
+    .then(() => refreshCart())
+    .catch((e) => alert(e.message));
+}
+
+function openCart() {
+  refreshCart();
+  document.getElementById('cartOverlay').classList.remove('hidden');
+}
+function closeCart() {
+  document.getElementById('cartOverlay').classList.add('hidden');
+}
+
+// ── Checkout ─────────────────────────────────────────
+function goToCheckout() {
+  if (!state.cart || state.cart.items.length === 0) return;
+  document.getElementById('checkoutAmountLabel').textContent = '₹' + Number(state.cart.total).toFixed(2);
+  document.getElementById('checkoutOverlay').classList.remove('hidden');
+}
+function backToCart() {
+  document.getElementById('checkoutOverlay').classList.add('hidden');
+}
+
+function submitCheckout() {
+  const name = document.getElementById('checkoutName').value.trim();
+  const phone = document.getElementById('checkoutPhone').value.trim();
+  const errEl = document.getElementById('checkoutError');
+  errEl.innerHTML = '';
+  if (!name || !phone) {
+    errEl.innerHTML = '<div class="error-msg">Name and phone number are required</div>';
+    return;
+  }
+
+  const payBtn = document.getElementById('payBtn');
+  payBtn.disabled = true;
+  payBtn.textContent = 'Preparing payment…';
+
+  api('/sessions/' + state.sessionId + '/checkout', { method: 'POST', body: JSON.stringify({ name, phone }) })
+    .then((result) => {
+      payBtn.disabled = false;
+      payBtn.textContent = 'Pay now';
+      openRazorpay(result);
+    })
+    .catch((e) => {
+      payBtn.disabled = false;
+      payBtn.textContent = 'Pay now';
+      errEl.innerHTML = '<div class="error-msg">' + e.message + '</div>';
+    });
+}
+
+function openRazorpay(result) {
+  const rzp = new Razorpay({
+    key: result.razorpayKeyId,
+    amount: result.amount,
+    currency: 'INR',
+    name: 'Salad Caffe',
+    description: 'Smart Fridge order',
+    order_id: result.razorpayOrderId,
+    prefill: {
+      name: document.getElementById('checkoutName').value.trim(),
+      contact: document.getElementById('checkoutPhone').value.trim(),
+    },
+    theme: { color: '#1B5E20' },
+    handler: function () {
+      // Never trust this callback alone — it only means Razorpay's popup closed
+      // after a client-side success. The order is only really PAID once our
+      // webhook confirms it, which is what showConfirming()/pollOrderStatus() wait for.
+      document.getElementById('checkoutOverlay').classList.add('hidden');
+      document.getElementById('cartOverlay').classList.add('hidden');
+      showConfirming(result.order.id);
+    },
+    modal: {
+      ondismiss: function () {
+        // customer closed the payment popup without paying — just return to checkout
+      },
+    },
+  });
+  rzp.open();
+}
+
+function showConfirming(orderId) {
+  document.getElementById('confirmingScreen').classList.remove('hidden');
+  let attempts = 0;
+  const maxAttempts = 20; // ~40s
+  clearInterval(state.pollTimer);
+  state.pollTimer = setInterval(() => {
+    attempts += 1;
+    api('/orders/' + orderId)
+      .then((order) => {
+        if (order.status === 'PAID') {
+          clearInterval(state.pollTimer);
+          showSuccess(order);
+        } else if (order.status === 'FAILED') {
+          clearInterval(state.pollTimer);
+          document.getElementById('confirmingScreen').classList.add('hidden');
+          document.getElementById('checkoutOverlay').classList.remove('hidden');
+          document.getElementById('checkoutError').innerHTML = '<div class="error-msg">Payment did not go through — please try again.</div>';
+        } else if (attempts >= maxAttempts) {
+          clearInterval(state.pollTimer);
+          document.getElementById('confirmingSub').textContent = 'Still confirming — this can take a minute. We\u2019ll text you the receipt.';
+        }
+      })
+      .catch(() => {});
+  }, 2000);
+}
+
+function showSuccess(order) {
+  document.getElementById('confirmingScreen').classList.add('hidden');
+  const card = document.getElementById('receiptCard');
+  card.innerHTML =
+    order.items.map((item) => (
+      '<div class="receipt-line"><span class="n">' + item.quantity + '× ' + item.productNameSnapshot + '</span><span>₹' + (item.unitPrice * item.quantity).toFixed(2) + '</span></div>'
+    )).join('') +
+    '<div class="receipt-line" style="border-top:1px solid var(--border);margin-top:6px;padding-top:8px;font-weight:700;color:var(--heading)"><span>Total paid</span><span>₹' + Number(order.totalAmount).toFixed(2) + '</span></div>' +
+    '<div class="order-id-note">Order ' + order.id + '</div>';
+  document.getElementById('successScreen').classList.remove('hidden');
+}
+
+function startNewOrder() {
+  localStorage.removeItem('sf_sessionId_' + state.fridgeCode);
+  location.reload();
+}
+</script>
+</body>
+</html>

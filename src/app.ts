@@ -19,10 +19,10 @@ export const app = express();
 
 app.set("trust proxy", 1); // Railway sits behind a proxy — needed for correct req.ip / rate limiting
 
-// CSP off: the admin dashboard is a single static file with inline script/style
-// and a Google Fonts import, and this is an internal tool behind login, not a
-// public-facing page — the trade-off is fine here. Helmet's other protections
-// (frame options, etc.) stay on.
+// CSP off: both the admin dashboard and the customer PWA are static files
+// with inline script/style, a Google Fonts import, and (for the PWA) the
+// html5-qrcode and Razorpay Checkout CDN scripts — the trade-off is fine
+// here. Helmet's other protections (frame options, etc.) stay on.
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
@@ -44,6 +44,9 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 // Admin dashboard — plain static HTML/JS, calls the /api routes below itself.
 app.use("/admin", express.static(path.join(process.cwd(), "public/admin")));
+
+// Customer-facing PWA — scan, cart, checkout. No auth, calls /api itself.
+app.use("/shop", express.static(path.join(process.cwd(), "public/shop")));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/fridges", fridgeRoutes);

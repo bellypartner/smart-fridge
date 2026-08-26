@@ -1,0 +1,15 @@
+{
+  "name": "Salad Caffe Smart Fridge",
+  "short_name": "Smart Fridge",
+  "description": "Scan, cart, and pay at any Salad Caffe smart fridge.",
+  "start_url": "/shop/",
+  "scope": "/shop/",
+  "display": "standalone",
+  "background_color": "#FAFAF7",
+  "theme_color": "#1B5E20",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/shop/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/shop/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
