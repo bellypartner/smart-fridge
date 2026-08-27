@@ -11,6 +11,7 @@ import {
   customerPhoneParamSchema,
   idParamSchema,
   listOrdersQuerySchema,
+  markOrderPaidSchema,
   stockParamSchema,
   updateBatchStatusSchema,
   updateCategorySchema,
@@ -244,6 +245,25 @@ router.get(
   requireRole("ADMIN"),
   asyncHandler(async (_req, res) => {
     res.status(200).json(await adminService.getSalesStats());
+  })
+);
+
+// Manual override for a payment that genuinely captured in Razorpay but
+// whose webhook never reached us — see admin.service.ts for the full
+// rationale. Deliberately ADMIN-only, not KITCHEN — this bypasses the
+// normal payment-verification path and should be used sparingly, after
+// checking Razorpay's dashboard directly.
+router.post(
+  "/orders/:orderId/mark-paid",
+  requireRole("ADMIN"),
+  validate(markOrderPaidSchema),
+  asyncHandler(async (req, res) => {
+    const order = await adminService.markOrderPaidManually(
+      req.params.orderId,
+      req.user!.sub,
+      req.body?.razorpayPaymentId
+    );
+    res.status(200).json(order);
   })
 );
 

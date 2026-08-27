@@ -103,7 +103,18 @@ A plain HTML/JS dashboard is served at **`/admin`** (e.g.
 it's a static file served by the same Express app. First visit: use
 "First time setup" to bootstrap the admin account (needs
 `ADMIN_BOOTSTRAP_SECRET`), then it's a normal phone+password login from
-then on. From there:
+then on.
+
+**Responsive down to phone width**, scoped entirely inside a
+`max-width: 768px` media query so desktop is untouched above that: the
+permanent sidebar becomes a slide-in drawer behind a hamburger button,
+grids collapse to one/two columns, and any table wider than the screen
+(the Sales tab's Recent Orders, for instance) scrolls horizontally
+within its own card instead of breaking the page layout. Verified with
+real browser screenshots at both phone width and a normal laptop width
+during development, not just by reading the CSS.
+
+From there:
 
 - **Categories** — create these first; the Product form's category field
   is a dropdown sourced from here, not free text.
@@ -177,6 +188,7 @@ GET    /api/admin/products            ADMIN, KITCHEN — list all products (incl
 GET    /api/admin/batches             ADMIN, KITCHEN — list all batches
 GET    /api/admin/orders              ADMIN only — ?status= and/or ?fridgeId= filters, most recent 200
 GET    /api/admin/orders/stats        ADMIN only — total/today revenue+orders, best sellers, revenue by fridge
+POST   /api/admin/orders/:orderId/mark-paid   ADMIN only — manually unstick a PENDING order whose webhook never fired (see below)
 
 PATCH  /api/admin/categories/:id      ADMIN — rename
 DELETE /api/admin/categories/:id      ADMIN — blocked if any product uses it
@@ -266,13 +278,19 @@ Served at **`/shop`** (e.g. `https://pos.saladcaffe.com/shop?fridge=<code>`)
 QR sticker just links to its own `?fridge=` code.
 
 - **Scan** — opens straight to the camera (via the `html5-qrcode` library
-  from a CDN) with a live scan frame. Each successful scan shows a brief
-  full-screen flash (product photo + name) and a phone vibration, then
-  keeps scanning — no need to close/reopen the camera between items.
+  from a CDN); the on-screen scan-region box is drawn entirely by that
+  library, not a second custom overlay — an earlier version drew its own
+  decorative frame independently positioned via CSS, which could visibly
+  drift out of alignment with the library's real scan region across
+  different phone screens (that's fixed now). Each successful scan shows
+  a brief full-screen flash (product photo + name) and a phone vibration,
+  then keeps scanning — no need to close/reopen the camera between items.
   Scanning the same code again within 2 seconds is ignored, so an
   accidental double-read of one sticker doesn't double-add it.
 - **Manual code entry** — a fallback link is always visible in case the
-  camera is denied, slow, or the sticker is damaged.
+  camera is denied, slow, or the sticker is damaged; the modal notes that
+  codes are case-sensitive, since that's a real way this can silently fail
+  otherwise.
 - **Cart** — a bottom sheet with live quantity controls and totals,
   reflecting exactly what the server has (never trusts client-side math).
 - **Checkout** — collects name + phone (mandatory, per the backend),
@@ -311,19 +329,23 @@ regular paper. Each copy prints as its own physical label
 between copies), so set your printer/driver's label size to match and
 "Print" sends one label per copy directly.
 
-Layout: item name (bold, large) with manufactured date, weight, and
-expiry stacked below it on the left; a QR code on the right; and a
-**readable text strip along the bottom printing the batch code itself**
-(not just encoded in the QR). This matters operationally: if a scan ever
-fails — camera trouble, a damaged or smudged label — there's still a
-human-readable code that can be typed into the shop app's "Can't scan?
-Enter the code" fallback, so a failed scan never means the item is
-simply unbuyable. Sizing is tuned to use as much of the physical label
-as the content allows (fonts and QR scaled up, margins minimized)
-without crowding out that fallback text. Verified end-to-end during
-development: rendered at true size, decoded back with a QR reader,
-confirmed to match the source string exactly — including with a long
-fridge code, to make sure the bottom strip never wraps awkwardly.
+Layout: item name (bold, large) with manufactured date, then weight and
+MRP combined onto one line (e.g. `250g · MRP ₹220` — combined
+specifically to avoid a 5th text line overflowing the already-tight
+25mm height), then expiry — all stacked on the left; a QR code on the
+right; and a **readable text strip along the bottom printing the batch
+code itself** (not just encoded in the QR). This matters operationally:
+if a scan ever fails — camera trouble, a damaged or smudged label —
+there's still a human-readable code that can be typed into the shop
+app's "Can't scan? Enter the code" fallback, so a failed scan never
+means the item is simply unbuyable. Sizing is tuned to use as much of
+the physical label as the content allows (fonts and QR scaled up,
+margins minimized) without crowding out that fallback text. Verified
+end-to-end during development: rendered at true size, decoded back with
+a QR reader, confirmed to match the source string exactly — including
+with a long fridge code, to make sure the bottom strip never wraps
+awkwardly, and again after adding the MRP line, to confirm nothing
+overflows the label with all four data lines present.
 
 Add a product's **Weight (g)** in the Products tab to have it appear on
 the label; leave it blank to omit that line. Expiry isn't a separate
@@ -445,6 +467,22 @@ JS) rather than a SQL `GROUP BY` — simple and fast enough at pilot order
 volumes (hundreds, maybe low thousands). Worth moving to real SQL
 aggregation, or a cron-computed summary table, if order volume grows into
 the tens of thousands.
+
+**"Mark as paid" override.** Every `PENDING` order in the Recent Orders
+list has a Mark as paid button. This exists for one specific failure
+mode: Razorpay genuinely captured the payment, but the webhook never
+reached the server (misconfigured secret, wrong URL, a temporary outage)
+so the order is stuck at `PENDING` forever even though the customer was
+charged. Clicking it runs the exact same stock-conversion logic the
+webhook itself uses (`quantityHeld`/`quantityAvailable` → `quantitySold`,
+session closed) so the two paths stay consistent — the only difference
+is this one is triggered by a logged-in admin instead of Razorpay, and
+it's logged to `AuditLog` as `ORDER_MARKED_PAID_MANUALLY` (distinct from
+the webhook's own `ORDER_PAID` action) with that admin's user id attached,
+so there's always a record of who used it and when. It's a deliberate
+escape hatch, not a substitute for fixing a broken webhook — use it only
+after confirming in Razorpay's own dashboard that the payment actually
+captured.
 
 ## Not in Phase 1 (next phases, on request)
 

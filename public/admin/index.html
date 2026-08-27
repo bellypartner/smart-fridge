@@ -138,6 +138,37 @@
   .main h1 { font-size: 24px; margin: 0 0 6px; }
   .main .page-sub { font-size: 13px; color: var(--body); margin-bottom: 28px; }
 
+  .mobile-menu-btn { display: none; }
+  .sidebar-backdrop { display: none; }
+
+  /* ── Mobile (phones/small tablets) — desktop layout above is untouched ── */
+  @media (max-width: 768px) {
+    .mobile-menu-btn {
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; top: 14px; left: 14px; z-index: 41;
+      width: 42px; height: 42px; border-radius: 10px;
+      background: var(--primary); color: var(--white); border: none;
+      font-size: 20px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0; width: 250px; z-index: 40;
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+    }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .sidebar-backdrop.active {
+      display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 39;
+    }
+    .main { padding: 76px 16px 24px; }
+    .grid, .grid-2 { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    table { font-size: 12px; }
+    th, td { padding: 8px 6px; }
+    .card { padding: 16px; overflow-x: auto; }
+    .card table { min-width: 480px; }
+    .card-header-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+
   .grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
 
@@ -301,7 +332,9 @@
 
 <!-- ═══════════════ DASHBOARD ═══════════════ -->
 <div id="dashScreen">
-  <div class="sidebar">
+  <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Menu">☰</button>
+  <div class="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+  <div class="sidebar" id="sidebar">
     <div class="brand">Salad Caffe</div>
     <div class="brand-sub">Smart Fridge Admin</div>
 
@@ -508,8 +541,8 @@
           </select>
         </div>
         <table>
-          <thead><tr><th>Date</th><th>Fridge</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th></tr></thead>
-          <tbody id="ordersTable"><tr class="empty-row"><td colspan="6">No orders yet</td></tr></tbody>
+          <thead><tr><th>Date</th><th>Fridge</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
+          <tbody id="ordersTable"><tr class="empty-row"><td colspan="7">No orders yet</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -717,6 +750,18 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach((el) => el.classList.toggle('hidden', el.id !== 'tab-' + tab));
   if (tab === 'sales') loadSales();
   if (tab === 'customers') loadCustomers();
+  closeMobileSidebar();
+}
+
+function toggleMobileSidebar() {
+  document.getElementById('sidebar').classList.toggle('mobile-open');
+  document.querySelector('.sidebar-backdrop').classList.toggle('active');
+  document.querySelector('.mobile-menu-btn').classList.toggle('hidden');
+}
+function closeMobileSidebar() {
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.querySelector('.sidebar-backdrop').classList.remove('active');
+  document.querySelector('.mobile-menu-btn').classList.remove('hidden');
 }
 
 function refreshAll() {
@@ -1111,14 +1156,18 @@ function printQrSheet() {
   let labelHtml;
   if (qrState.isBatch && qrState.batch) {
     const b = qrState.batch;
-    const weightLine = b.product.weightGrams ? '<div class="tl-line">Wt: ' + b.product.weightGrams + ' g</div>' : '';
+    const mrpValue = Number(b.product.mrp).toFixed(0);
+    const wtMrpParts = [];
+    if (b.product.weightGrams) wtMrpParts.push(b.product.weightGrams + 'g');
+    wtMrpParts.push('MRP ₹' + mrpValue);
+    const wtMrpLine = '<div class="tl-line">' + wtMrpParts.join(' · ') + '</div>';
     labelHtml =
       '<div class="thermal-label">' +
         '<div class="tl-main">' +
           '<div class="tl-text">' +
             '<div class="tl-name">' + b.product.name + '</div>' +
             '<div class="tl-line">Mfg: ' + formatLabelDate(b.manufacturedAt) + '</div>' +
-            weightLine +
+            wtMrpLine +
             '<div class="tl-line">Exp: ' + formatLabelDate(b.expiresAt) + '</div>' +
           '</div>' +
           '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
@@ -1180,10 +1229,26 @@ function loadOrders() {
           '<td>' + o.customerName + '<br><span class="field-note" style="margin:0">' + o.customerPhone + '</span></td>' +
           '<td>' + o.items.reduce((n, i) => n + i.quantity, 0) + '</td>' +
           '<td>' + money(o.totalAmount) + '</td>' +
-          '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td></tr>'
+          '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td>' +
+          '<td>' + (o.status === 'PENDING' ? '<button class="qr-btn" onclick="markOrderPaid(\'' + o.id + '\')">Mark as paid</button>' : '') + '</td></tr>'
         )).join('')
-      : '<tr class="empty-row"><td colspan="6">No orders yet</td></tr>';
+      : '<tr class="empty-row"><td colspan="7">No orders yet</td></tr>';
   }).catch(() => {});
+}
+
+// Manual override — only for a payment you've independently confirmed as
+// captured in the Razorpay dashboard but the webhook never reached us for.
+// This is not a substitute for fixing a broken webhook; it's a one-off
+// unstick for an order already affected by that.
+function markOrderPaid(orderId) {
+  if (!confirm('Only do this if you\'ve confirmed in Razorpay\'s dashboard that this payment was actually captured. Mark this order as paid?')) return;
+  const paymentId = prompt('Optional: paste the Razorpay payment ID for the record (from Razorpay Dashboard \u2192 Payments). Leave blank to skip.') || undefined;
+  api('/admin/orders/' + orderId + '/mark-paid', { method: 'POST', body: JSON.stringify({ razorpayPaymentId: paymentId }) })
+    .then(() => {
+      loadOrders();
+      loadSalesStats();
+    })
+    .catch((e) => alert(e.message));
 }
 
 // ── Generic edit modal ───────────────────────────────

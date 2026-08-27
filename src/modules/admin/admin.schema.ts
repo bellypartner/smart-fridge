@@ -151,3 +151,11 @@ export const customerPhoneParamSchema = z.object({
   params: z.object({ phone: z.string().min(1) }),
   query: z.object({}).optional(),
 });
+
+export const markOrderPaidSchema = z.object({
+  body: z.object({
+    razorpayPaymentId: z.string().min(1).optional(),
+  }).optional(),
+  params: z.object({ orderId: z.string().min(1) }),
+  query: z.object({}).optional(),
+});

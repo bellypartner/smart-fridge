@@ -51,14 +51,10 @@
   #scannerScreen { position: fixed; inset: 0; background: #000; }
   #qrReader { position: absolute; inset: 0; }
   #qrReader video { width: 100% !important; height: 100% !important; object-fit: cover; }
-  /* html5-qrcode injects its own scan-region box/border; keep our own frame subtle on top */
-  .scan-frame {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -55%);
-    width: 240px; height: 240px; border-radius: 24px;
-    box-shadow: 0 0 0 2000px rgba(0,0,0,0.35);
-    border: 2.5px solid rgba(255,255,255,0.85);
-    pointer-events: none;
-  }
+  /* No custom overlay drawn here — html5-qrcode renders its own scan-region
+     box based on the actual video element's real dimensions. A second,
+     independently-positioned overlay would drift out of sync with it across
+     different phone screens (exactly the bug a prior version had). */
   .topbar {
     position: absolute; top: 0; left: 0; right: 0;
     padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 14px;
@@ -69,7 +65,7 @@
   .topbar .fridge-name { color: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; }
   .scan-hint {
     position: absolute; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.85);
-    font-size: 13px; top: calc(50% + 145px);
+    font-size: 13px; bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); z-index: 4;
   }
   .manual-entry-link {
     position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px); left: 0; right: 0;
@@ -179,7 +175,6 @@
 <!-- ═══════════════ SCANNER SCREEN ═══════════════ -->
 <div id="scannerScreen">
   <div id="qrReader"></div>
-  <div class="scan-frame"></div>
   <div class="scan-hint">Point at a product's QR code</div>
 
   <div class="topbar">
@@ -234,8 +229,8 @@
   <div class="modal-backdrop" onclick="closeManualEntry(event)">
     <div class="modal-card" onclick="event.stopPropagation()">
       <h3>Enter product code</h3>
-      <div class="modal-sub">Type the code printed under the QR sticker.</div>
-      <input id="manualCodeInput" placeholder="e.g. SC-FRIDGE-001-CHISAL-260825" />
+      <div class="modal-sub">Type the code printed under the QR sticker exactly — codes are case-sensitive.</div>
+      <input id="manualCodeInput" placeholder="e.g. FRIDGE-001-CHISAL-2708" />
       <div id="manualEntryError"></div>
       <button class="btn-cta" style="margin-top:14px" onclick="submitManualCode()">Add to cart</button>
       <button class="btn-ghost-full" onclick="closeManualEntry()">Cancel</button>

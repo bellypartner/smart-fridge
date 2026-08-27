@@ -398,6 +398,71 @@ export const getSalesStats = async () => {
   };
 };
 
+// Manual override for exactly one situation: Razorpay genuinely captured a
+// payment, but the webhook never reached us (misconfigured secret, wrong
+// URL, temporary outage, etc.) so the order is stuck at PENDING forever.
+// This mirrors payment.service.ts's handlePaymentCaptured() so the stock
+// conversion and audit trail stay consistent — the only difference is this
+// one is triggered by an admin who has independently verified the payment
+// in the Razorpay dashboard, not by Razorpay's own webhook.
+export const markOrderPaidManually = async (
+  orderId: string,
+  actorId: string,
+  razorpayPaymentId?: string
+) => {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+  if (!order) throw ApiError.notFound("Order not found", "ORDER_NOT_FOUND");
+
+  if (order.status === "PAID") {
+    return order; // idempotent — already handled, nothing to do
+  }
+  if (order.status !== "PENDING") {
+    throw ApiError.conflict(
+      `This order is ${order.status}, not PENDING — only a stuck pending order can be marked paid this way`,
+      "ORDER_NOT_PENDING"
+    );
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({
+      where: { id: order.id },
+      data: {
+        status: "PAID",
+        razorpayPaymentId: razorpayPaymentId ?? order.razorpayPaymentId,
+        paidAt: new Date(),
+      },
+    });
+
+    for (const item of order.items) {
+      await tx.fridgeStock.updateMany({
+        where: { fridgeId: order.fridgeId, batchId: item.batchId },
+        data: {
+          quantityAvailable: { decrement: item.quantity },
+          quantityHeld: { decrement: item.quantity },
+          quantitySold: { increment: item.quantity },
+        },
+      });
+    }
+
+    await tx.shoppingSession.update({
+      where: { id: order.sessionId },
+      data: { status: "CHECKED_OUT", closedAt: new Date() },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId, // the admin who did this — unlike the webhook path, there IS a logged-in actor here
+        action: "ORDER_MARKED_PAID_MANUALLY",
+        entityType: "Order",
+        entityId: order.id,
+        metadata: { razorpayPaymentId: razorpayPaymentId ?? null, customerPhone: order.customerPhone },
+      },
+    });
+
+    return updated;
+  });
+};
+
 // ── Customers ────────────────────────────────────────────────
 // There's no customer account (see order.service.ts) — phone number is the
 // only stable identity we have, captured unverified at checkout. Grouping
