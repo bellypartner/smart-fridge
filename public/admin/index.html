@@ -271,26 +271,34 @@
 
     .thermal-label {
       width: 50mm; height: 25mm; box-sizing: border-box;
-      display: flex; flex-direction: column; padding: 0.6mm 1mm;
+      display: flex; flex-direction: column; padding: 1mm 1mm 0.5mm;
       page-break-after: always; break-after: page;
       font-family: Arial, Helvetica, sans-serif; color: #000;
     }
-    .thermal-label .tl-main { flex: 1; min-height: 0; display: flex; align-items: center; }
+    .thermal-label .tl-main { flex: 1; min-height: 0; display: flex; align-items: center; overflow: hidden; }
     .thermal-label .tl-text { flex: 1; min-width: 0; padding-right: 1mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
     .thermal-label .tl-name {
-      font-size: 3.6mm; font-weight: 700; line-height: 1.05; margin-bottom: 1mm;
+      font-size: 3.4mm; font-weight: 700; line-height: 1.05; margin-bottom: 0.7mm;
       word-break: break-word; overflow: hidden; display: -webkit-box;
       -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .thermal-label .tl-line { font-size: 2.3mm; line-height: 1.35; white-space: nowrap; }
-    .thermal-label .tl-qr { width: 19mm; height: 19mm; flex-shrink: 0; }
+    .thermal-label .tl-line { font-size: 2.5mm; font-weight: 700; line-height: 1.25; white-space: nowrap; }
+    .thermal-label .tl-qr { width: 16mm; height: 16mm; flex-shrink: 0; }
     .thermal-label .tl-qr img { width: 100%; height: 100%; display: block; }
     .thermal-label .tl-code {
-      font-family: 'Courier New', monospace; font-size: 1.7mm; line-height: 1.15;
-      text-align: center; word-break: break-all; overflow: hidden;
-      max-height: 4mm; margin-top: 0.4mm; flex-shrink: 0;
+      /* Single line, always — a wrapping code strip made the layout's
+         total height unpredictable and let content bleed past the
+         label's fixed 25mm boundary in testing. Truncating with an
+         ellipsis instead keeps this rock solid regardless of code
+         length; the QR itself always encodes the full untruncated
+         code either way, so scanning is never affected — only the
+         rare case of an unusually long fridge code would ever show a
+         shortened fallback text. */
+      font-family: 'Courier New', monospace; font-size: 3mm; font-weight: 700; line-height: 1.1;
+      text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-top: 0.5mm; flex-shrink: 0;
     }
-    .thermal-label-fridge .tl-qr { width: 20mm; height: 20mm; }
+    .thermal-label-fridge .tl-qr { width: 18mm; height: 18mm; }
     .thermal-label-fridge .tl-name { font-size: 4mm; -webkit-line-clamp: 2; }
   }
 </style>
@@ -1139,12 +1147,28 @@ function downloadQr() {
   a.click();
 }
 
-function formatLabelDate(dateStr) {
+// Compact (no year) — used alongside a time on the label, where space is
+// tight; the batch code's own DDMM suffix already carries the date
+// unambiguously if the year is ever needed.
+function formatLabelDateShort(dateStr) {
   const d = new Date(dateStr);
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = String(d.getFullYear()).slice(-2);
-  return dd + '/' + mm + '/' + yy;
+  return dd + '/' + mm;
+}
+
+function formatLabelTime(dateStr) {
+  const d = new Date(dateStr);
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return hours + ':' + minutes + ' ' + ampm;
+}
+
+function formatLabelDateTime(dateStr) {
+  return formatLabelDateShort(dateStr) + ' ' + formatLabelTime(dateStr);
 }
 
 // Builds one 50mm x 25mm label per physical copy — sized exactly to the
@@ -1166,9 +1190,9 @@ function printQrSheet() {
         '<div class="tl-main">' +
           '<div class="tl-text">' +
             '<div class="tl-name">' + b.product.name + '</div>' +
-            '<div class="tl-line">Mfg: ' + formatLabelDate(b.manufacturedAt) + '</div>' +
+            '<div class="tl-line">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div>' +
             wtMrpLine +
-            '<div class="tl-line">Exp: ' + formatLabelDate(b.expiresAt) + '</div>' +
+            '<div class="tl-line">Exp ' + formatLabelDateTime(b.expiresAt) + '</div>' +
           '</div>' +
           '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
         '</div>' +

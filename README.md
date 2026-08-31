@@ -329,23 +329,49 @@ regular paper. Each copy prints as its own physical label
 between copies), so set your printer/driver's label size to match and
 "Print" sends one label per copy directly.
 
-Layout: item name (bold, large) with manufactured date, then weight and
-MRP combined onto one line (e.g. `250g · MRP ₹220` — combined
-specifically to avoid a 5th text line overflowing the already-tight
-25mm height), then expiry — all stacked on the left; a QR code on the
-right; and a **readable text strip along the bottom printing the batch
-code itself** (not just encoded in the QR). This matters operationally:
-if a scan ever fails — camera trouble, a damaged or smudged label —
-there's still a human-readable code that can be typed into the shop
-app's "Can't scan? Enter the code" fallback, so a failed scan never
-means the item is simply unbuyable. Sizing is tuned to use as much of
-the physical label as the content allows (fonts and QR scaled up,
-margins minimized) without crowding out that fallback text. Verified
-end-to-end during development: rendered at true size, decoded back with
-a QR reader, confirmed to match the source string exactly — including
-with a long fridge code, to make sure the bottom strip never wraps
-awkwardly, and again after adding the MRP line, to confirm nothing
-overflows the label with all four data lines present.
+Layout: item name (bold, large) with manufactured date **and time**,
+then weight and MRP combined onto one line (e.g. `180g · MRP ₹150`),
+then expiry date **and time** — all stacked on the left, bold
+throughout; a QR code on the right; and a **readable text strip along
+the bottom printing the batch code itself** (not just encoded in the
+QR). This matters operationally: if a scan ever fails — camera trouble,
+a damaged or smudged label — there's still a human-readable code that
+can be typed into the shop app's "Can't scan? Enter the code" fallback,
+so a failed scan never means the item is simply unbuyable.
+
+Dates on the Mfg/Exp lines drop the year (e.g. `27/08 6:30 PM`, not
+`27/08/26 6:30 PM`) specifically to make room for the time without
+shrinking the font — the batch code's own `DDMM` suffix still carries
+the date unambiguously if the year is ever needed. Time is always
+12-hour with AM/PM (`formatLabelTime()` in the dashboard's script),
+including the midnight/noon edge cases (`12:00 AM`/`12:00 PM`, not
+`0:00`).
+
+**Text sizing was tuned against actual printed labels, not just a
+screen preview** — twice. The first pass measured fine on-screen but
+printed with the detail lines and code strip too small and thin to read
+on the real thermal head; small, non-bold text loses definition on
+thermal printers in a way a monitor or PDF preview doesn't show. That
+was fixed with bold, larger text. A second round pushed the batch code
+strip larger still (now 3mm bold, up from an already-enlarged 2.6mm) to
+make it unmistakably legible, and adding the Mfg/Exp times meant
+re-checking that the now-longer detail lines still fit without silently
+truncating (`white-space: nowrap` + `overflow: hidden` clips text with
+no visual indicator if a line runs too wide — unlike the code strip,
+which shows `…`). Verified by rendering at true size with the longest
+realistic content (name that wraps to two lines, both times present, a
+deliberately long fridge code) and zooming into the rendered text to
+directly confirm nothing — including the trailing "AM"/"PM" — gets cut
+off, not just checking that the label's overall box stayed within
+bounds.
+
+The code strip is also always a single line — an earlier version let a
+very long code wrap to a second line, which made the label's total
+content height unpredictable and could push content past the physical
+25mm boundary; it now truncates with `…` instead (the QR always encodes
+the complete, untruncated code regardless, so scanning is never
+affected — only the rare case of an unusually long fridge code would
+ever show a shortened fallback text).
 
 Add a product's **Weight (g)** in the Products tab to have it appear on
 the label; leave it blank to omit that line. Expiry isn't a separate
