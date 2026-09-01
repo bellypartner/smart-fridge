@@ -140,12 +140,13 @@ enum BatchStatus {
 
 model Batch {
   id             String      @id @default(cuid())
-  batchCode      String      @unique // auto-generated: SC-<fridge code>-<product code>-<YYMMDD> — see admin.service.ts
+  batchCode      String      @unique // auto-generated: <product code>-<DDMM> — see admin.service.ts / batchCode.ts. A batch is not fridge-specific — see totalQuantity below.
   productId      String
   product        Product     @relation(fields: [productId], references: [id])
   manufacturedAt DateTime
   expiresAt      DateTime    // auto-computed from manufacturedAt + Product.shelfLifeHours
   status         BatchStatus @default(ACTIVE)
+  totalQuantity  Int?        // total units produced in this run — nullable so existing batches from before this field existed aren't broken. Allocation to fridges (FridgeStock.quantityAllocated, summed across all fridges for this batch) is capped against this when set; unset means uncapped, for backward compatibility.
   createdAt      DateTime    @default(now())
 
   stocks         FridgeStock[]

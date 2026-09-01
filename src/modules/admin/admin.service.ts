@@ -107,28 +107,27 @@ export const deleteProduct = async (id: string) => {
 };
 
 // ── Batches ──────────────────────────────────────────────────
-// Creating a batch now does three things in one step: generates its code
-// (SC-<fridge code>-<product code>-<YYMMDD>), computes its expiry from the
-// product's shelf life, and allocates the given quantity to the chosen
-// fridge — the admin no longer types a batch code or an expiry date by hand.
+// A batch is a production run, not a fridge assignment — it isn't tied
+// to any one fridge. Creating one generates its code (<product
+// code>-<DDMM>) and computes its expiry from the product's shelf life;
+// totalQuantity records how much was made overall. Getting units into
+// a specific fridge is a separate step — see allocateStock() below,
+// which is capped against totalQuantity so you can't allocate out more
+// than was actually produced.
 export const createBatch = async (data: {
   productId: string;
-  fridgeId: string;
   manufacturedAt: string;
-  quantity: number;
+  totalQuantity: number;
 }) => {
   const product = await prisma.product.findUnique({ where: { id: data.productId } });
   if (!product) throw ApiError.notFound("Product not found", "PRODUCT_NOT_FOUND");
 
-  const fridge = await prisma.fridge.findUnique({ where: { id: data.fridgeId } });
-  if (!fridge) throw ApiError.notFound("Fridge not found", "FRIDGE_NOT_FOUND");
-
   const manufacturedAt = new Date(data.manufacturedAt);
   const expiresAt = new Date(manufacturedAt.getTime() + product.shelfLifeHours * 60 * 60 * 1000);
 
-  // Resolve the rare collision (same fridge + product + day, batched twice)
+  // Resolve the rare collision (same product batched twice in one day)
   // by appending -2, -3, ... rather than failing the request outright.
-  const baseCode = buildBatchCode(fridge.code, product.name, manufacturedAt);
+  const baseCode = buildBatchCode(product.name, manufacturedAt);
   let batchCode = baseCode;
   let suffix = 2;
   while (await prisma.batch.findUnique({ where: { batchCode } })) {
@@ -136,19 +135,9 @@ export const createBatch = async (data: {
     suffix += 1;
   }
 
-  return prisma.$transaction(async (tx) => {
-    const batch = await tx.batch.create({
-      data: { batchCode, productId: data.productId, manufacturedAt, expiresAt },
-      include: { product: true },
-    });
-
-    const stock = await tx.fridgeStock.upsert({
-      where: { fridgeId_batchId: { fridgeId: data.fridgeId, batchId: batch.id } },
-      update: { quantityAvailable: { increment: data.quantity }, quantityAllocated: { increment: data.quantity } },
-      create: { fridgeId: data.fridgeId, batchId: batch.id, quantityAvailable: data.quantity, quantityAllocated: data.quantity },
-    });
-
-    return { batch, stock };
+  return prisma.batch.create({
+    data: { batchCode, productId: data.productId, manufacturedAt, expiresAt, totalQuantity: data.totalQuantity },
+    include: { product: true },
   });
 };
 
@@ -215,14 +204,33 @@ export const deleteFridge = async (id: string) => {
   await prisma.fridge.delete({ where: { id } });
 };
 
-// Allocate (or top up) stock of an existing batch at a fridge — for
-// restocking a fridge with a batch that's already been created.
+// Allocate (or top up) stock of an existing batch at a fridge — this is
+// THE step that actually distributes a mass-produced batch out to
+// specific fridges (batch creation itself no longer touches any fridge).
 export const allocateStock = async (fridgeId: string, batchId: string, quantity: number) => {
   const fridge = await prisma.fridge.findUnique({ where: { id: fridgeId } });
   if (!fridge) throw ApiError.notFound("Fridge not found", "FRIDGE_NOT_FOUND");
 
   const batch = await prisma.batch.findUnique({ where: { id: batchId } });
   if (!batch) throw ApiError.notFound("Batch not found", "BATCH_NOT_FOUND");
+
+  // Cap against how much was actually produced — but only when tracked;
+  // batches from before totalQuantity existed have it as null and stay
+  // uncapped for backward compatibility.
+  if (batch.totalQuantity != null) {
+    const allocatedSoFar = await prisma.fridgeStock.aggregate({
+      where: { batchId },
+      _sum: { quantityAllocated: true },
+    });
+    const alreadyAllocated = allocatedSoFar._sum.quantityAllocated ?? 0;
+    const remaining = batch.totalQuantity - alreadyAllocated;
+    if (quantity > remaining) {
+      throw ApiError.conflict(
+        `Only ${remaining} unit(s) of this batch are still unallocated (${alreadyAllocated} of ${batch.totalQuantity} already assigned to fridges)`,
+        "EXCEEDS_BATCH_QUANTITY"
+      );
+    }
+  }
 
   return prisma.fridgeStock.upsert({
     where: { fridgeId_batchId: { fridgeId, batchId } },
@@ -316,10 +324,20 @@ export const listProducts = () => {
   });
 };
 
-export const listBatches = () => {
-  return prisma.batch.findMany({
-    include: { product: { include: { category: true } } },
+// Includes computed allocatedSoFar/remaining per batch (sum of
+// FridgeStock.quantityAllocated across every fridge that batch has ever
+// been assigned to) — this is what lets the Stock tab show "how much of
+// this batch is still available to assign to a fridge."
+export const listBatches = async () => {
+  const batches = await prisma.batch.findMany({
+    include: { product: { include: { category: true } }, stocks: { select: { quantityAllocated: true } } },
     orderBy: { createdAt: "desc" },
+  });
+
+  return batches.map(({ stocks, ...batch }) => {
+    const allocatedSoFar = stocks.reduce((sum, s) => sum + s.quantityAllocated, 0);
+    const remaining = batch.totalQuantity != null ? batch.totalQuantity - allocatedSoFar : null;
+    return { ...batch, allocatedSoFar, remaining };
   });
 };
 

@@ -455,27 +455,24 @@
     <!-- BATCHES -->
     <div class="tab-panel hidden" id="tab-batches">
       <h1>Batches</h1>
-      <div class="page-sub">The batch code is generated for you and is exactly what gets printed on the QR sheet — one sheet per batch, customers scan it per item taken. Creating a batch also loads its stock into the fridge you pick.</div>
+      <div class="page-sub">A batch is a production run, not tied to one fridge — the batch code is generated for you. Once created, use the Stock tab to allocate portions of it out to specific fridges.</div>
       <div class="grid">
         <div class="card">
           <h3>New batch</h3>
-          <div id="closeOutReminder" class="hidden" style="background:#FFF3E0;border:1px solid #FFD199;color:#B8600A;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;"></div>
-          <label>Fridge</label>
-          <select id="batchFridge" onchange="updateBatchCodePreview(); checkCloseOutReminder();"><option value="">Select a fridge…</option></select>
           <label>Product</label>
           <select id="batchProduct" onchange="updateBatchCodePreview()"><option value="">Select a product…</option></select>
           <label>Manufactured at</label>
           <input id="batchMfg" type="datetime-local" onchange="updateBatchCodePreview()" />
-          <label>Quantity going into this fridge</label>
-          <input id="batchQty" type="number" placeholder="20" />
+          <label>Total quantity produced</label>
+          <input id="batchQty" type="number" placeholder="100" />
           <div class="code-preview" id="batchCodePreview"><span class="label">Batch code (auto-generated)</span>—</div>
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createBatch()">Create batch</button>
         </div>
         <div class="card">
           <h3>All batches</h3>
           <table>
-            <thead><tr><th>Batch code</th><th>Product</th><th>Expires</th><th>Status</th><th></th></tr></thead>
-            <tbody id="batchesTable"><tr class="empty-row"><td colspan="5">No batches yet</td></tr></tbody>
+            <thead><tr><th>Batch code</th><th>Product</th><th>Expires</th><th>Made</th><th>Available to assign</th><th>Status</th><th></th></tr></thead>
+            <tbody id="batchesTable"><tr class="empty-row"><td colspan="7">No batches yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -484,12 +481,13 @@
     <!-- STOCK -->
     <div class="tab-panel hidden" id="tab-stock">
       <h1>Stock</h1>
-      <div class="page-sub">Allocate batch stock to a fridge — this is what makes an item scannable there. Do this every time a fridge is restocked.</div>
+      <div class="page-sub">Allocate a batch's stock to a fridge — this is what makes an item scannable there. Do this every time a fridge is restocked, and to distribute a mass-produced batch across multiple fridges.</div>
       <div class="grid">
         <div class="card">
           <h3>Allocate stock</h3>
+          <div id="closeOutReminder" class="hidden" style="background:#FFF3E0;border:1px solid #FFD199;color:#B8600A;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;"></div>
           <label>Fridge</label>
-          <select id="stockFridge" onchange="loadFridgeStock()"><option value="">Select a fridge…</option></select>
+          <select id="stockFridge" onchange="loadFridgeStock(); checkCloseOutReminder();"><option value="">Select a fridge…</option></select>
           <label>Batch</label>
           <select id="stockBatch"><option value="">Select a batch…</option></select>
           <label>Quantity</label>
@@ -499,11 +497,11 @@
         <div class="card">
           <h3>Current stock at selected fridge</h3>
           <table>
-            <thead><tr><th>Product</th><th>Batch</th><th>Made</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
+            <thead><tr><th>Product</th><th>Batch</th><th>Allocated here</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
             <tbody id="stockTable"><tr class="empty-row"><td colspan="7">Select a fridge above</td></tr></tbody>
           </table>
           <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
-          <div class="field-note">"Made" is the running total ever allocated to this batch — it doesn't change from manual corrections. Use "Close out" at the end of each day to record whatever's left as waste and stop it from selling further.</div>
+          <div class="field-note">"Allocated here" is the running total ever assigned to this fridge for this batch — it doesn't change from manual corrections. Use "Close out" at the end of each day to record whatever's left as waste and stop it from selling further.</div>
         </div>
       </div>
     </div>
@@ -794,11 +792,6 @@ function loadFridges() {
 
     const stockSel = document.getElementById('stockFridge');
     stockSel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
-
-    const batchSel = document.getElementById('batchFridge');
-    const prevBatchFridge = batchSel.value;
-    batchSel.innerHTML = '<option value="">Select a fridge…</option>' + fridges.map((f) => '<option value="' + f.id + '" data-code="' + f.code + '">' + f.code + ' — ' + f.name + '</option>').join('');
-    batchSel.value = prevBatchFridge;
   }).catch(() => {});
 }
 
@@ -937,28 +930,28 @@ function previewDateCode(date) {
 }
 
 function updateBatchCodePreview() {
-  const fridgeSel = document.getElementById('batchFridge');
   const productSel = document.getElementById('batchProduct');
   const mfgInput = document.getElementById('batchMfg').value;
   const el = document.getElementById('batchCodePreview');
 
-  const fridgeCode = fridgeSel.selectedOptions[0] && fridgeSel.selectedOptions[0].dataset.code;
   const productName = productSel.selectedOptions[0] && productSel.selectedOptions[0].dataset.name;
   const date = mfgInput ? new Date(mfgInput) : new Date();
 
-  if (!fridgeCode || !productName) {
+  if (!productName) {
     el.innerHTML = '<span class="label">Batch code (auto-generated)</span>—';
     return;
   }
-  const code = fridgeCode + '-' + previewProductCode(productName) + '-' + previewDateCode(date);
+  const code = previewProductCode(productName) + '-' + previewDateCode(date);
   el.innerHTML = '<span class="label">Batch code (auto-generated)</span>' + code;
 }
 
 // Warns if the selected fridge has any ACTIVE batch still sitting with
 // leftover stock — almost always yesterday's batch that never got
-// Close-out'd. Non-blocking: this is a nudge, not a hard stop.
+// Close-out'd. Non-blocking: this is a nudge, not a hard stop. Lives on
+// the Stock tab now, since that's where fridge selection actually
+// happens (batch creation no longer touches a fridge at all).
 function checkCloseOutReminder() {
-  const fridgeId = document.getElementById('batchFridge').value;
+  const fridgeId = document.getElementById('stockFridge').value;
   const banner = document.getElementById('closeOutReminder');
   if (!fridgeId) { banner.classList.add('hidden'); return; }
 
@@ -967,7 +960,7 @@ function checkCloseOutReminder() {
     if (unclosed.length === 0) { banner.classList.add('hidden'); return; }
 
     const names = unclosed.map((r) => r.batch.product.name + ' (' + r.quantityAvailable + ' left)').join(', ');
-    banner.innerHTML = '⚠️ This fridge still has unclosed stock: ' + names + '. Close it out in the Stock tab before today\'s batch, or yesterday\'s leftovers will keep counting as available.';
+    banner.innerHTML = '⚠️ This fridge still has unclosed stock: ' + names + '. Close it out below before allocating more, or yesterday\'s leftovers will keep counting as available.';
     banner.classList.remove('hidden');
   }).catch(() => {});
 }
@@ -978,35 +971,41 @@ function loadBatches() {
     const tbody = document.getElementById('batchesTable');
     tbody.innerHTML = batches.length ? batches.map((b) => (
       '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
+      '<td>' + (b.totalQuantity ?? '—') + '</td>' +
+      '<td>' + (b.remaining ?? '—') + '</td>' +
       '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td>' +
       '<td><button class="qr-btn" onclick="openBatchQr(\'' + b.id + '\')">QR</button> ' +
       '<button class="qr-btn" onclick="openEditModal(\'batch\',\'' + b.id + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'batch\',\'' + b.id + '\',\'' + escQ(b.batchCode) + '\')">Delete</button></td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="5">No batches yet</td></tr>';
+    )).join('') : '<tr class="empty-row"><td colspan="7">No batches yet</td></tr>';
 
     const sel = document.getElementById('stockBatch');
-    const activeBatches = batches.filter((b) => b.status === 'ACTIVE');
-    sel.innerHTML = '<option value="">Select a batch…</option>' + activeBatches.map((b) => '<option value="' + b.id + '">' + b.batchCode + ' (' + b.product.name + ')</option>').join('');
+    // Only offer batches that are ACTIVE and still have something left to
+    // assign — a fully-allocated or inactive batch has nothing to give out.
+    const assignable = batches.filter((b) => b.status === 'ACTIVE' && (b.remaining == null || b.remaining > 0));
+    sel.innerHTML = '<option value="">Select a batch…</option>' + assignable.map((b) => (
+      '<option value="' + b.id + '">' + b.batchCode + ' — ' + b.product.name +
+      (b.remaining != null ? ' (' + b.remaining + ' available)' : '') + '</option>'
+    )).join('');
   }).catch(() => {});
 }
 
 function createBatch() {
   const body = {
-    fridgeId: document.getElementById('batchFridge').value,
     productId: document.getElementById('batchProduct').value,
     manufacturedAt: document.getElementById('batchMfg').value ? new Date(document.getElementById('batchMfg').value).toISOString() : '',
-    quantity: parseInt(document.getElementById('batchQty').value, 10),
+    totalQuantity: parseInt(document.getElementById('batchQty').value, 10),
   };
-  if (!body.fridgeId || !body.productId || !body.manufacturedAt || !body.quantity) {
-    alert('Fridge, product, manufactured date, and quantity are all required'); return;
+  if (!body.productId || !body.manufacturedAt || !body.totalQuantity) {
+    alert('Product, manufactured date, and total quantity are all required'); return;
   }
   api('/admin/batches', { method: 'POST', body: JSON.stringify(body) })
-    .then((result) => {
+    .then((batch) => {
       document.getElementById('batchMfg').value = '';
       document.getElementById('batchQty').value = '';
       updateBatchCodePreview();
       loadBatches();
-      openBatchQr(result.batch, body.quantity);
+      openBatchQr(batch, body.totalQuantity);
     })
     .catch((e) => alert(e.message));
 }
@@ -1054,6 +1053,7 @@ function allocateStock() {
     .then(() => {
       document.getElementById('stockQty').value = '';
       loadFridgeStock();
+      loadBatches(); // refreshes "available to assign" now that some was just allocated
     })
     .catch((e) => alert(e.message));
 }
@@ -1102,12 +1102,13 @@ function openFridgeQr(code, name) {
 function openBatchQr(batchIdOrObj, defaultQty) {
   const b = typeof batchIdOrObj === 'string' ? batchesCache.find((x) => x.id === batchIdOrObj) : batchIdOrObj;
   if (!b) { alert('Could not find that batch — try refreshing the page.'); return; }
+  const copies = defaultQty ?? b.remaining ?? b.totalQuantity ?? 1;
   qrState.text = b.batchCode;
   qrState.label = b.product.name;
   qrState.sub = b.batchCode;
   qrState.isBatch = true;
   qrState.batch = b;
-  renderQrModal('Batch QR — ' + b.product.name, b.batchCode, true, defaultQty);
+  renderQrModal('Batch QR — ' + b.product.name, b.batchCode, true, copies);
 }
 
 function renderQrModal(title, text, showCopies, defaultQty) {

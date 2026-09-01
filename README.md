@@ -37,17 +37,31 @@ tests/          DB-independent unit tests (otp hashing, ApiError)
 
 ## Data model — the decisions that shape everything else
 
+**A batch is a production run, not a fridge assignment.** `Batch` has no
+fridge on it at all — it's just a product, a manufactured date, an
+auto-computed expiry, and a `totalQuantity` (how much was made). Getting
+units into a specific fridge is a separate step: `FridgeStock` links a
+batch to a fridge with its own quantity, and one batch can have many
+`FridgeStock` rows across different fridges. This matches a central
+kitchen model — produce 100 units in one run, then distribute them
+across 3 fridges in whatever split makes sense, all from the one batch.
+(Earlier versions of this app tied a batch to one fridge at creation
+time, which didn't match that workflow — this was restructured after
+that mismatch came up directly.)
+
 **Batch-level QR, not per-instance.** The printed QR encodes a
-`batchCode`, auto-generated as `<fridge code>-<product code>-<DDMM>`
-(e.g. `FRIDGE-TECHNOPARK-001-CHISAL-0408` for "Chicken Salad", made
-Aug 4) — see `src/utils/batchCode.ts`. No "SC" prefix, and the date is
+`batchCode`, auto-generated as `<product code>-<DDMM>` (e.g.
+`CHISAL-0408` for "Chicken Salad", made Aug 4) — see
+`src/utils/batchCode.ts`. No "SC" prefix and no fridge in the code
+(since a batch isn't fridge-specific — see above), and the date is
 day+month only (no year) — a same-day collision across different years
 is vanishingly rare, and the code falls back to a `-2`, `-3`, ... suffix
-automatically if it ever happens. Note: this format changed after the
-first version shipped — batches created before the change keep their
-original `SC-...-YYMMDD` codes; nothing retroactively renames an
-already-printed label. Shared by every unit in that batch. You print one
-sheet per batch, not a unique label per box.
+automatically if it ever happens. Note: this format has changed twice
+now — batches created under an earlier version keep their original code
+(some with a fridge in it, some with `SC-`); nothing retroactively
+renames an already-printed label. Shared by every unit in that batch.
+You print one sheet per batch (or rather, one per unit you're
+distributing — see "copies to print" below), not a unique label per box.
 
 **No customer login.** `ShoppingSession` and `Order` are anonymous —
 there's no `User` behind them. The session id returned by
@@ -123,33 +137,42 @@ From there:
   URI directly on the product row — no S3 or file storage set up for this
   phase. Fine at pilot scale; worth moving to real object storage if the
   catalog grows into the hundreds or images need to be much larger.
-- **Batches** — pick a fridge, product, manufactured date, and quantity.
-  The batch code (`<fridge code>-<product code>-<DDMM>`, e.g.
-  `FRIDGE-TECHNOPARK-001-CHISAL-0408` for "Chicken Salad") and expiry
-  (from the product's shelf life) are generated for you — a live preview
-  shows the code before you submit. Creating a batch also allocates its
-  stock to the chosen fridge in the same step, so there's no separate
-  "allocate stock" click for a brand-new batch (that's still there for
-  topping up an *existing* batch at another fridge, or restocking later
-  — and that dropdown only ever offers `ACTIVE` batches, since restocking
-  something already `EXPIRED`/`RECALLED` doesn't make sense).
-  Immediately after creating a batch, its QR modal opens automatically —
-  see below. Selecting a fridge here also checks that fridge for any
-  `ACTIVE` batch still sitting with leftover stock and shows a non-blocking
-  orange reminder to Close it out first — almost always yesterday's
-  batch that never got closed.
+- **Batches** — pick a product, manufactured date, and **total quantity
+  produced**. No fridge here — a batch isn't tied to one. The batch code
+  (`<product code>-<DDMM>`, e.g. `CHISAL-0408` for "Chicken Salad") and
+  expiry (from the product's shelf life) are generated for you — a live
+  preview shows the code before you submit. Immediately after creating a
+  batch, its QR modal opens automatically, defaulted to print the full
+  quantity produced — see below. The Batches table shows **Made** (total
+  produced) and **Available to assign** (how much of that hasn't been
+  allocated to any fridge yet) per batch.
+- **Stock** — this is where a batch's production actually reaches a
+  fridge. Pick a fridge and a batch, enter a quantity, and it's added to
+  that fridge's stock — repeat across as many fridges as you're
+  distributing this batch to. The batch dropdown shows each batch's
+  remaining "available to assign" quantity right in the label, and only
+  offers `ACTIVE` batches that still have something left to give out; a
+  batch already fully distributed (or one that's `EXPIRED`/`RECALLED`)
+  won't be offered. Allocating more than a batch's recorded total
+  quantity is rejected outright — the error tells you exactly how much
+  is actually left. Selecting a fridge here also checks it for any
+  `ACTIVE` batch still sitting with leftover stock and shows a
+  non-blocking orange reminder to Close it out first — almost always
+  yesterday's batch that never got closed.
 - **QR codes** — every fridge and batch row has a **QR** button. Fridge
   QRs encode a link (`<your domain>/shop?fridge=<code>`) — this is what
   goes on the fridge itself, so scanning it with a phone camera opens the
   customer PWA directly, no app needed. Batch QRs encode just the raw
   batch code (what the PWA's in-app scanner reads to add it to a cart).
   Each QR modal offers **Download PNG** and **Print** — for batches,
-  there's also a "copies to print" field (defaults to the quantity you
-  just allocated) that lays out a grid of that many QR + label cards on
-  one print job, sized for adhesive label sheets. Generated entirely in
-  the browser (the `qrcode-generator` library, from a CDN) — no server
-  round-trip,
-  no third-party QR service seeing your codes.
+  there's also a "copies to print" field, defaulting to however much of
+  that batch is still unallocated (the whole `totalQuantity` right after
+  creation; less than that if you're reprinting after some has already
+  been assigned to fridges). See "Printing batch labels on a real
+  thermal printer" further down for the actual print layout — it's sized
+  to a real 50mm×25mm label printer, not a cut-apart sheet. Generated
+  entirely in the browser (the `qrcode-generator` library, from a CDN) —
+  no server round-trip, no third-party QR service seeing your codes.
 - **Stock**, and (as ADMIN)
 create additional staff logins — all without touching curl/Postman.
 
@@ -179,13 +202,13 @@ POST   /api/payments/webhook          Razorpay webhook (payment.captured / payme
 POST   /api/admin/categories          ADMIN — create a category (create these before products)
 GET    /api/admin/categories          ADMIN, KITCHEN
 POST   /api/admin/products            ADMIN
-POST   /api/admin/batches             ADMIN, KITCHEN — { productId, fridgeId, manufacturedAt, quantity } — code/expiry auto-derived, stock allocated in the same call
+POST   /api/admin/batches             ADMIN, KITCHEN — { productId, manufacturedAt, totalQuantity } — no fridge; code/expiry auto-derived, no stock allocated yet
 POST   /api/admin/fridges             ADMIN
-POST   /api/admin/fridges/:id/stock   ADMIN, KITCHEN — restock after a service visit
+POST   /api/admin/fridges/:id/stock   ADMIN, KITCHEN — allocate part of a batch's production to this fridge; capped against the batch's totalQuantity
 GET    /api/admin/fridges/:id/stock   ADMIN, KITCHEN
 GET    /api/admin/fridges             ADMIN, KITCHEN — list all fridges
 GET    /api/admin/products            ADMIN, KITCHEN — list all products (includes category + image)
-GET    /api/admin/batches             ADMIN, KITCHEN — list all batches
+GET    /api/admin/batches             ADMIN, KITCHEN — list all batches, each with computed allocatedSoFar/remaining
 GET    /api/admin/orders              ADMIN only — ?status= and/or ?fridgeId= filters, most recent 200
 GET    /api/admin/orders/stats        ADMIN only — total/today revenue+orders, best sellers, revenue by fridge
 POST   /api/admin/orders/:orderId/mark-paid   ADMIN only — manually unstick a PENDING order whose webhook never fired (see below)
@@ -430,8 +453,9 @@ than ordinary food waste; found *more* is usually just a miscount or an
 early close-out, lower-stakes to correct.
 
 **Suggested daily routine:** each morning, Close out any batch from the
-previous fridge visit that still shows leftover stock, then create
-today's fresh batch as usual in the Batches tab.
+previous day that still shows leftover stock at a given fridge (Stock
+tab), then create today's fresh batch in the Batches tab and allocate
+it out to whichever fridges it's going to (Stock tab again).
 
 ## Editing and deleting
 

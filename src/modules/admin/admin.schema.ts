@@ -41,15 +41,16 @@ export const createProductSchema = z.object({
 });
 
 // batchCode and expiresAt are no longer supplied by the admin — the server
-// derives both (code from fridge+product+date, expiry from the product's
-// shelf life) so the format is consistent and never mistyped. Creating a
-// batch also allocates its initial stock to the chosen fridge in one step.
+// derives both (code from product+date, expiry from the product's shelf
+// life) so the format is consistent and never mistyped. A batch is NOT
+// fridge-specific — no fridge is chosen here. totalQuantity is how much
+// was produced overall; getting units into a specific fridge is a
+// separate step (POST /fridges/:fridgeId/stock, capped against this).
 export const createBatchSchema = z.object({
   body: z.object({
     productId: z.string().min(1),
-    fridgeId: z.string().min(1),
     manufacturedAt: z.string().datetime(),
-    quantity: z.number().int().positive(),
+    totalQuantity: z.number().int().positive(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),

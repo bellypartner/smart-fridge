@@ -41,14 +41,17 @@ async function main() {
   });
 
   const now = new Date();
+  const ddmm = String(now.getDate()).padStart(2, "0") + String(now.getMonth() + 1).padStart(2, "0");
+  const seedBatchCode = "GRIPOW-" + ddmm;
   const batch = await prisma.batch.upsert({
-    where: { batchCode: "SC-FRIDGE-TECHNOPARK-001-GRIPOW-" + now.toISOString().slice(2, 10).replace(/-/g, "") },
+    where: { batchCode: seedBatchCode },
     update: {},
     create: {
-      batchCode: "SC-FRIDGE-TECHNOPARK-001-GRIPOW-" + now.toISOString().slice(2, 10).replace(/-/g, ""),
+      batchCode: seedBatchCode,
       productId: product.id,
       manufacturedAt: now,
       expiresAt: new Date(now.getTime() + product.shelfLifeHours * 60 * 60 * 1000),
+      totalQuantity: 20,
     },
   });
 
