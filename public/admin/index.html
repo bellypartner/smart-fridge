@@ -663,11 +663,57 @@ let stockCache = [];
 
 function escQ(s) { return String(s == null ? '' : s).replace(/'/g, "\\'"); }
 
-function api(path, opts = {}) {
+let isRefreshing = null; // dedupes concurrent refresh attempts if several requests 401 at once
+
+function doSilentRefresh() {
+  if (isRefreshing) return isRefreshing;
+  const refreshToken = sessionStorage.getItem('sf_refresh');
+  if (!refreshToken) return Promise.reject(new Error('No refresh token stored'));
+
+  isRefreshing = fetch('/api/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  }).then(async (res) => {
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error('Refresh failed');
+    state.accessToken = body.accessToken;
+    state.role = body.role;
+    sessionStorage.setItem('sf_access', body.accessToken);
+    sessionStorage.setItem('sf_refresh', body.refreshToken);
+    sessionStorage.setItem('sf_role', body.role);
+    return body.accessToken;
+  }).finally(() => { isRefreshing = null; });
+
+  return isRefreshing;
+}
+
+function forceReLogin(message) {
+  sessionStorage.removeItem('sf_access');
+  sessionStorage.removeItem('sf_refresh');
+  sessionStorage.removeItem('sf_role');
+  alert(message || 'Your session expired — please log in again.');
+  location.reload();
+}
+
+// Every request that gets a 401 (expired access token — happens every 15
+// minutes by design) silently renews it via the refresh token and retries
+// once, so an admin mid-task never loses form input to a surprise logout.
+// Only a truly dead session (refresh token itself expired, ~30 days, or
+// revoked by a logout) falls through to forcing a real re-login.
+function api(path, opts = {}, isRetry) {
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (state.accessToken) headers['Authorization'] = 'Bearer ' + state.accessToken;
   return fetch('/api' + path, Object.assign({}, opts, { headers }))
     .then(async (res) => {
+      if (res.status === 401 && !isRetry) {
+        return doSilentRefresh()
+          .then(() => api(path, opts, true))
+          .catch(() => {
+            forceReLogin();
+            throw new Error('Session expired');
+          });
+      }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body.error && body.error.message) || 'Request failed');
       return body;
@@ -717,6 +763,7 @@ function onAuthSuccess(tokens) {
   state.accessToken = tokens.accessToken;
   state.role = tokens.role;
   sessionStorage.setItem('sf_access', tokens.accessToken);
+  sessionStorage.setItem('sf_refresh', tokens.refreshToken);
   sessionStorage.setItem('sf_role', tokens.role);
   enterDashboard();
 }
@@ -735,8 +782,18 @@ function enterDashboard() {
 }
 
 function doLogout() {
+  const refreshToken = sessionStorage.getItem('sf_refresh');
   sessionStorage.removeItem('sf_access');
+  sessionStorage.removeItem('sf_refresh');
   sessionStorage.removeItem('sf_role');
+  if (refreshToken) {
+    // Best-effort — revoke it server-side too, don't block the UI on this.
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    }).catch(() => {});
+  }
   location.reload();
 }
 

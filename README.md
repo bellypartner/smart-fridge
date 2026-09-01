@@ -110,6 +110,27 @@ whenever a provider is added, but the login you'll actually use is:
   accounts (`phone`, `password`, `name`, `role: "ADMIN" | "KITCHEN"`)
   without touching the database directly.
 
+**Token lifetime and the dashboard's silent refresh.** Access tokens
+expire after `JWT_ACCESS_EXPIRES_IN` (default 15 minutes) — intentional,
+standard practice for a bearer token. What isn't intentional is being
+logged out mid-task because of it: the dashboard's `api()` helper now
+catches a `401`, silently exchanges the stored refresh token for a new
+access token via `POST /api/auth/refresh`, and retries the original
+request once — invisibly, so in-progress form input is never lost to a
+surprise logout. Only a genuinely dead session (refresh token itself
+expired, `JWT_REFRESH_EXPIRES_IN`, default 30 days — or explicitly
+logged out) falls through to a real re-login prompt. Logging out now
+also calls `POST /api/auth/logout` to revoke that device's refresh token
+server-side, not just forget it locally.
+
+**Multiple devices logged in at once was already supported** and still
+is — logging in issues a new refresh token without revoking any other
+device's existing one (each login just adds a row to `RefreshToken`), so
+a phone and a laptop can hold independent sessions for the same account
+simultaneously. What looked like a single-device restriction before this
+fix was actually the missing silent-refresh above, hitting each device
+independently every 15 minutes.
+
 ## Admin dashboard
 
 A plain HTML/JS dashboard is served at **`/admin`** (e.g.
