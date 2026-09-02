@@ -594,10 +594,10 @@
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createStaff()">Create account</button>
         </div>
         <div class="card">
-          <h3>Created this session</h3>
+          <h3>All staff</h3>
           <table>
-            <thead><tr><th>Name</th><th>Phone</th><th>Role</th></tr></thead>
-            <tbody id="staffTable"><tr class="empty-row"><td colspan="3">Newly created accounts appear here</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Phone</th><th>Role</th><th>Status</th><th></th></tr></thead>
+            <tbody id="staffTable"><tr class="empty-row"><td colspan="5">No staff accounts yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -813,6 +813,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-panel').forEach((el) => el.classList.toggle('hidden', el.id !== 'tab-' + tab));
   if (tab === 'sales') loadSales();
   if (tab === 'customers') loadCustomers();
+  if (tab === 'staff') loadStaff();
   closeMobileSidebar();
 }
 
@@ -1116,7 +1117,20 @@ function allocateStock() {
 }
 
 // ── Staff ──
-const createdStaff = [];
+let staffCache = [];
+
+function loadStaff() {
+  api('/auth/staff').then((staff) => {
+    staffCache = staff;
+    const tbody = document.getElementById('staffTable');
+    tbody.innerHTML = staff.length ? staff.map((s) => (
+      '<tr><td>' + s.name + '</td><td>' + s.phone + '</td><td>' + s.role + '</td>' +
+      '<td><span class="badge ' + (s.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td>' +
+      '<td><button class="qr-btn" onclick="openEditModal(\'staff\',\'' + s.id + '\')">Edit</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="5">No staff accounts yet</td></tr>';
+  }).catch(() => {});
+}
+
 function createStaff() {
   const body = {
     name: document.getElementById('staffName').value.trim(),
@@ -1126,13 +1140,11 @@ function createStaff() {
   };
   if (!body.name || !body.phone || !body.password) { alert('Name, phone, and password are required'); return; }
   api('/auth/staff', { method: 'POST', body: JSON.stringify(body) })
-    .then((staff) => {
-      createdStaff.unshift(staff);
-      const tbody = document.getElementById('staffTable');
-      tbody.innerHTML = createdStaff.map((s) => '<tr><td>' + s.name + '</td><td>' + s.phone + '</td><td>' + s.role + '</td></tr>').join('');
+    .then(() => {
       document.getElementById('staffName').value = '';
       document.getElementById('staffPhone').value = '';
       document.getElementById('staffPassword').value = '';
+      loadStaff();
     })
     .catch((e) => alert(e.message));
 }
@@ -1365,6 +1377,10 @@ const EDIT_CONFIGS = {
     { key: 'quantityAvailable', label: 'Available quantity', type: 'number', value: s.quantityAvailable },
     { key: 'quantityWasted', label: 'Wasted quantity (correct this if a physical count after Close-out differs)', type: 'number', value: s.quantityWasted },
   ],
+  staff: (s) => [
+    { key: 'role', label: 'Role', type: 'select', value: s.role, options: [['KITCHEN', 'Kitchen'], ['ADMIN', 'Admin']] },
+    { key: 'isActive', label: 'Active', type: 'checkbox', value: s.isActive },
+  ],
 };
 
 function findCurrent(entityType, entityId, extraParam) {
@@ -1373,6 +1389,7 @@ function findCurrent(entityType, entityId, extraParam) {
   if (entityType === 'product') return productsCache.find((x) => x.id === entityId);
   if (entityType === 'batch') return batchesCache.find((x) => x.id === entityId);
   if (entityType === 'stock') return stockCache.find((x) => x.batch.id === entityId && x.fridgeId === extraParam);
+  if (entityType === 'staff') return staffCache.find((x) => x.id === entityId);
   return null;
 }
 
@@ -1453,6 +1470,7 @@ function submitEdit() {
   else if (t === 'product') url = '/admin/products/' + id;
   else if (t === 'batch') url = '/admin/batches/' + id;
   else if (t === 'stock') url = '/admin/fridges/' + editState.extraParam + '/stock/' + id;
+  else if (t === 'staff') url = '/auth/staff/' + id;
 
   api(url, { method: 'PATCH', body: JSON.stringify(body) })
     .then(() => {
@@ -1470,6 +1488,7 @@ function refreshEntity(t) {
   else if (t === 'product') loadProducts();
   else if (t === 'batch') loadBatches();
   else if (t === 'stock') loadFridgeStock();
+  else if (t === 'staff') loadStaff();
 }
 
 function deleteEntity(entityType, id, label, extraParam) {

@@ -62,3 +62,12 @@ export const createStaffSchema = z.object({
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
+
+export const updateStaffSchema = z.object({
+  body: z.object({
+    role: z.enum(["ADMIN", "KITCHEN"]).optional(),
+    isActive: z.boolean().optional(),
+  }),
+  params: z.object({ id: z.string().min(1) }),
+  query: z.object({}).optional(),
+});

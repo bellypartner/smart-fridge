@@ -108,7 +108,14 @@ whenever a provider is added, but the login you'll actually use is:
   everyone after that first admin exists.
 - `POST /api/auth/staff` — ADMIN-only. Lets an admin create more staff
   accounts (`phone`, `password`, `name`, `role: "ADMIN" | "KITCHEN"`)
-  without touching the database directly.
+  without touching the database directly. `GET /api/auth/staff` lists
+  every account (no password hashes in the response), and
+  `PATCH /api/auth/staff/:id` updates role and/or deactivates one — the
+  dashboard's Staff tab shows this real list now (it originally only
+  showed accounts created in that browser session, which meant a phone
+  number collision on create had no way to be checked or explained
+  beforehand — fixed by actually loading the real roster from the
+  database instead of a client-side-only list).
 
 **Token lifetime and the dashboard's silent refresh.** Access tokens
 expire after `JWT_ACCESS_EXPIRES_IN` (default 15 minutes) — intentional,
@@ -203,6 +210,8 @@ create additional staff logins — all without touching curl/Postman.
 POST   /api/auth/bootstrap-admin      { phone, password, name, secret } — one-time only
 POST   /api/auth/login                { phone, password }              — staff
 POST   /api/auth/staff                { phone, password, name, role }  — ADMIN only
+GET    /api/auth/staff                ADMIN only — every staff account (passwordHash excluded)
+PATCH  /api/auth/staff/:id            ADMIN only — update role and/or isActive
 POST   /api/auth/refresh              { refreshToken }                 — staff
 POST   /api/auth/otp/request          { phone }                        — unused until SMS is wired
 POST   /api/auth/otp/verify           { phone, code, name? }           — unused until SMS is wired

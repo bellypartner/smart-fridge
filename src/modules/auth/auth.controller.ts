@@ -42,3 +42,13 @@ export const createStaff = async (req: Request, res: Response) => {
   const staff = await authService.createStaff(phone, password, name, role);
   res.status(201).json(staff);
 };
+
+export const listStaff = async (_req: Request, res: Response) => {
+  const staff = await authService.listStaff();
+  res.status(200).json(staff);
+};
+
+export const updateStaff = async (req: Request, res: Response) => {
+  const staff = await authService.updateStaff(req.params.id, req.body);
+  res.status(200).json(staff);
+};

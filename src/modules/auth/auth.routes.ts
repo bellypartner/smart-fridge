@@ -9,6 +9,7 @@ import {
   loginSchema,
   refreshSchema,
   requestOtpSchema,
+  updateStaffSchema,
   verifyOtpSchema,
 } from "./auth.schema";
 import * as authController from "./auth.controller";
@@ -22,13 +23,28 @@ router.post("/login", validate(loginSchema), asyncHandler(authController.login))
 // and refuses to run again once any ADMIN exists — see auth.service.ts.
 router.post("/bootstrap-admin", validate(bootstrapAdminSchema), asyncHandler(authController.bootstrapAdmin));
 
-// Admin-only: add more staff accounts once the first admin exists.
+// Admin-only: add, list, and manage staff accounts once the first admin exists.
 router.post(
   "/staff",
   requireAuth,
   requireRole("ADMIN"),
   validate(createStaffSchema),
   asyncHandler(authController.createStaff)
+);
+
+router.get(
+  "/staff",
+  requireAuth,
+  requireRole("ADMIN"),
+  asyncHandler(authController.listStaff)
+);
+
+router.patch(
+  "/staff/:id",
+  requireAuth,
+  requireRole("ADMIN"),
+  validate(updateStaffSchema),
+  asyncHandler(authController.updateStaff)
 );
 
 router.post("/refresh", validate(refreshSchema), asyncHandler(authController.refresh));

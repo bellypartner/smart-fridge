@@ -201,5 +201,32 @@ export const createStaff = async (
     data: { phone, passwordHash, name, role },
   });
 
-  return { id: user.id, phone: user.phone, name: user.name, role: user.role };
+  return { id: user.id, phone: user.phone, name: user.name, role: user.role, isActive: user.isActive };
+};
+
+// Every staff account, newest first — passwordHash deliberately excluded.
+// This is what was missing before: there was no way to see who already
+// existed, so a phone-number collision on create was a surprise with no
+// way to check first.
+export const listStaff = async () => {
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, phone: true, role: true, isActive: true, createdAt: true },
+  });
+  return users;
+};
+
+export const updateStaff = async (
+  id: string,
+  data: Partial<{ role: "ADMIN" | "KITCHEN"; isActive: boolean }>
+) => {
+  const existing = await prisma.user.findUnique({ where: { id } });
+  if (!existing) throw ApiError.notFound("Staff account not found", "USER_NOT_FOUND");
+
+  const user = await prisma.user.update({
+    where: { id },
+    data,
+    select: { id: true, name: true, phone: true, role: true, isActive: true, createdAt: true },
+  });
+  return user;
 };
