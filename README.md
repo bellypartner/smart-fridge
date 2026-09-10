@@ -442,6 +442,28 @@ Because this is fresh food, whatever's left unsold at the end of a day
 gets physically thrown away — the Stock tab now reflects that instead of
 just letting old stock sit there silently.
 
+**Default filters — what's live right now, not everything ever made.**
+Both the Batches and Stock tabs default to a filtered view instead of
+showing every row ever created:
+
+- **Batches tab** defaults to **"Today, active"** — batches manufactured
+  today with `status: ACTIVE`. Switch the dropdown to "All batches" to
+  see everything, still sorted newest-manufactured-first. This is a
+  client-side filter over data already fetched — switching it doesn't
+  trigger a new request, and it doesn't affect which batches the Stock
+  tab's "Allocate stock" dropdown offers (that's still any `ACTIVE`
+  batch with quantity remaining, regardless of manufacture date —
+  allocating from yesterday's still-active batch is entirely valid).
+- **Stock tab** defaults to **"Live today"** — stock whose batch is
+  `ACTIVE` and manufactured today, i.e. what's actually sellable right
+  now. Switching to **"Closed out"** shows the opposite: anything whose
+  batch is no longer `ACTIVE` (closed out via the button below, or
+  `RECALLED`) — this is where a batch "goes" once it's been closed out,
+  separate from the live view rather than just disappearing, so a
+  physical-count check against yesterday's Close-out can still happen
+  without it cluttering today's live list. "All" shows everything. All
+  three modes sort newest-manufactured-first.
+
 Two new fields on `FridgeStock`:
 - **`quantityAllocated`** — an immutable running total of everything ever
   put into this batch at this fridge (incremented only by creating a

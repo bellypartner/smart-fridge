@@ -470,10 +470,16 @@
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createBatch()">Create batch</button>
         </div>
         <div class="card">
-          <h3>All batches</h3>
+          <div class="card-header-row">
+            <h3>All batches</h3>
+            <select id="batchFilterMode" class="filter-select" onchange="renderBatchesTable()">
+              <option value="today-active">Today, active</option>
+              <option value="all">All batches</option>
+            </select>
+          </div>
           <table>
-            <thead><tr><th>Batch code</th><th>Product</th><th>Expires</th><th>Made</th><th>Available to assign</th><th>Status</th><th></th></tr></thead>
-            <tbody id="batchesTable"><tr class="empty-row"><td colspan="7">No batches yet</td></tr></tbody>
+            <thead><tr><th>Batch code</th><th>Product</th><th>Made on</th><th>Expires</th><th>Made</th><th>Available to assign</th><th>Status</th><th></th></tr></thead>
+            <tbody id="batchesTable"><tr class="empty-row"><td colspan="8">No batches yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -496,10 +502,17 @@
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="allocateStock()">Add stock</button>
         </div>
         <div class="card">
-          <h3>Current stock at selected fridge</h3>
+          <div class="card-header-row">
+            <h3>Current stock at selected fridge</h3>
+            <select id="stockFilterMode" class="filter-select" onchange="renderStockTable()">
+              <option value="live-today">Live today</option>
+              <option value="closed-out">Closed out</option>
+              <option value="all">All</option>
+            </select>
+          </div>
           <table>
-            <thead><tr><th>Product</th><th>Batch</th><th>Allocated here</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
-            <tbody id="stockTable"><tr class="empty-row"><td colspan="7">Select a fridge above</td></tr></tbody>
+            <thead><tr><th>Product</th><th>Batch</th><th>Made on</th><th>Allocated here</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
+            <tbody id="stockTable"><tr class="empty-row"><td colspan="8">Select a fridge above</td></tr></tbody>
           </table>
           <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
           <div class="field-note">"Allocated here" is the running total ever assigned to this fridge for this batch — it doesn't change from manual corrections. Use "Close out" at the end of each day to record whatever's left as waste and stop it from selling further.</div>
@@ -1058,29 +1071,52 @@ function checkCloseOutReminder() {
   }).catch(() => {});
 }
 
+function isSameDay(dateStr, refDate) {
+  const d = new Date(dateStr);
+  return d.getFullYear() === refDate.getFullYear() && d.getMonth() === refDate.getMonth() && d.getDate() === refDate.getDate();
+}
+
 function loadBatches() {
   api('/admin/batches').then((batches) => {
     batchesCache = batches;
-    const tbody = document.getElementById('batchesTable');
-    tbody.innerHTML = batches.length ? batches.map((b) => (
-      '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
-      '<td>' + (b.totalQuantity ?? '—') + '</td>' +
-      '<td>' + (b.remaining ?? '—') + '</td>' +
-      '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td>' +
-      '<td><button class="qr-btn" onclick="openBatchQr(\'' + b.id + '\')">QR</button> ' +
-      '<button class="qr-btn" onclick="openEditModal(\'batch\',\'' + b.id + '\')">Edit</button> ' +
-      '<button class="delete-link" onclick="deleteEntity(\'batch\',\'' + b.id + '\',\'' + escQ(b.batchCode) + '\')">Delete</button></td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="7">No batches yet</td></tr>';
+    renderBatchesTable();
 
     const sel = document.getElementById('stockBatch');
     // Only offer batches that are ACTIVE and still have something left to
-    // assign — a fully-allocated or inactive batch has nothing to give out.
+    // assign — a fully-allocated or inactive batch has nothing to give
+    // out. Deliberately NOT restricted to today — allocating from
+    // yesterday's still-active batch is entirely valid.
     const assignable = batches.filter((b) => b.status === 'ACTIVE' && (b.remaining == null || b.remaining > 0));
     sel.innerHTML = '<option value="">Select a batch…</option>' + assignable.map((b) => (
       '<option value="' + b.id + '">' + b.batchCode + ' — ' + b.product.name +
       (b.remaining != null ? ' (' + b.remaining + ' available)' : '') + '</option>'
     )).join('');
   }).catch(() => {});
+}
+
+// Renders the batches table from the already-fetched cache, applying
+// whichever filter is selected — no extra API call, just a re-render.
+function renderBatchesTable() {
+  const mode = document.getElementById('batchFilterMode').value;
+  const today = new Date();
+
+  let rows = batchesCache.slice();
+  if (mode === 'today-active') {
+    rows = rows.filter((b) => b.status === 'ACTIVE' && isSameDay(b.manufacturedAt, today));
+  }
+  rows.sort((a, b) => new Date(b.manufacturedAt) - new Date(a.manufacturedAt));
+
+  const tbody = document.getElementById('batchesTable');
+  tbody.innerHTML = rows.length ? rows.map((b) => (
+    '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.manufacturedAt).toLocaleDateString() + '</td>' +
+    '<td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
+    '<td>' + (b.totalQuantity ?? '—') + '</td>' +
+    '<td>' + (b.remaining ?? '—') + '</td>' +
+    '<td><span class="badge ' + (b.status === 'ACTIVE' ? 'badge-active' : 'badge-inactive') + '">' + b.status + '</span></td>' +
+    '<td><button class="qr-btn" onclick="openBatchQr(\'' + b.id + '\')">QR</button> ' +
+    '<button class="qr-btn" onclick="openEditModal(\'batch\',\'' + b.id + '\')">Edit</button> ' +
+    '<button class="delete-link" onclick="deleteEntity(\'batch\',\'' + b.id + '\',\'' + escQ(b.batchCode) + '\')">Delete</button></td></tr>'
+  )).join('') : '<tr class="empty-row"><td colspan="8">' + (mode === 'today-active' ? 'No active batches made today — try "All batches"' : 'No batches yet') + '</td></tr>';
 }
 
 function createBatch() {
@@ -1107,24 +1143,51 @@ function createBatch() {
 function loadFridgeStock() {
   const fridgeId = document.getElementById('stockFridge').value;
   const tbody = document.getElementById('stockTable');
-  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Select a fridge above</td></tr>'; return; }
+  if (!fridgeId) { tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Select a fridge above</td></tr>'; return; }
   api('/admin/fridges/' + fridgeId + '/stock').then((rows) => {
     stockCache = rows;
-    tbody.innerHTML = rows.length ? rows.map((r) => {
-      const total = r.quantityAvailable + r.quantityHeld || 1;
-      const availPct = Math.round((r.quantityAvailable / total) * 100);
-      const closeOutDisabled = r.quantityAvailable === 0 ? 'disabled title="Nothing left to close out"' : '';
-      return '<tr><td>' + r.batch.product.name + '</td><td>' + r.batch.batchCode + '</td>' +
-        '<td>' + r.quantityAllocated + '</td>' +
-        '<td><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
-        '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></td>' +
-        '<td>' + r.quantitySold + '</td>' +
-        '<td>' + r.quantityWasted + '</td>' +
-        '<td><button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button> ' +
-        '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
-        '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
-    }).join('') : '<tr class="empty-row"><td colspan="7">No stock allocated at this fridge yet</td></tr>';
+    renderStockTable();
   }).catch(() => {});
+}
+
+// Renders from the already-fetched cache — no extra API call on filter change.
+function renderStockTable() {
+  const tbody = document.getElementById('stockTable');
+  if (!document.getElementById('stockFridge').value) { tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Select a fridge above</td></tr>'; return; }
+
+  const mode = document.getElementById('stockFilterMode').value;
+  const today = new Date();
+
+  let rows = stockCache.slice();
+  if (mode === 'live-today') {
+    rows = rows.filter((r) => r.batch.status === 'ACTIVE' && isSameDay(r.batch.manufacturedAt, today));
+  } else if (mode === 'closed-out') {
+    // Once Close-out flips a batch's status (ACTIVE -> EXPIRED, or it was
+    // RECALLED some other way), it moves here — out of the "live" view
+    // entirely, ready for the after-the-fact physical-count check rather
+    // than mixed in with what's still actually sellable today.
+    rows = rows.filter((r) => r.batch.status !== 'ACTIVE');
+  }
+  rows.sort((a, b) => new Date(b.batch.manufacturedAt) - new Date(a.batch.manufacturedAt));
+
+  tbody.innerHTML = rows.length ? rows.map((r) => {
+    const total = r.quantityAvailable + r.quantityHeld || 1;
+    const availPct = Math.round((r.quantityAvailable / total) * 100);
+    const closeOutDisabled = r.quantityAvailable === 0 ? 'disabled title="Nothing left to close out"' : '';
+    return '<tr><td>' + r.batch.product.name + '</td><td>' + r.batch.batchCode + '</td>' +
+      '<td>' + new Date(r.batch.manufacturedAt).toLocaleDateString() + '</td>' +
+      '<td>' + r.quantityAllocated + '</td>' +
+      '<td><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
+      '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></td>' +
+      '<td>' + r.quantitySold + '</td>' +
+      '<td>' + r.quantityWasted + '</td>' +
+      '<td><button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button> ' +
+      '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
+      '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
+  }).join('') : '<tr class="empty-row"><td colspan="8">' + (
+    mode === 'live-today' ? 'Nothing live today — try "All" or "Closed out"' :
+    mode === 'closed-out' ? 'Nothing closed out yet' : 'No stock allocated at this fridge yet'
+  ) + '</td></tr>';
 }
 
 function closeOutStock(fridgeId, batchId, productName, currentAvailable) {
