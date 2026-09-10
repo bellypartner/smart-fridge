@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Salad Caffe — Feedback</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #1B5E20;
+    --secondary: #43A047;
+    --accent: #8BC34A;
+    --cta: #FF7A00;
+    --heading: #1F2937;
+    --body: #4B5563;
+    --bg: #FAFAF7;
+    --white: #FFFFFF;
+    --border: #E5E1D8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: 'Inter', sans-serif; color: var(--body); background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, .brand { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--heading); }
+
+  .wrap { max-width: 480px; margin: 0 auto; padding: 28px 20px 60px; }
+  .brand-mark { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .brand-mark .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cta); }
+  .brand { font-size: 19px; font-weight: 800; }
+  .page-title { font-size: 22px; margin: 14px 0 2px; }
+  .page-sub { font-size: 13px; color: var(--body); margin-bottom: 22px; }
+  .fridge-context { font-size: 12px; color: var(--secondary); font-weight: 600; margin-bottom: 18px; }
+
+  .card {
+    background: var(--white); border: 1px solid var(--border); border-radius: 18px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .card .section-sub { font-size: 12px; color: var(--body); margin-bottom: 16px; }
+
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--heading); margin: 16px 0 8px; }
+  label:first-of-type { margin-top: 0; }
+  input, textarea {
+    width: 100%; padding: 12px 13px; border: 1.5px solid var(--border); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 14px; color: var(--heading); background: var(--white);
+    outline: none; resize: vertical;
+  }
+  input:focus, textarea:focus { border-color: var(--secondary); }
+
+  .stars { display: flex; gap: 6px; }
+  .star-btn {
+    background: none; border: none; font-size: 30px; line-height: 1; cursor: pointer; padding: 2px;
+    color: var(--border); transition: color .1s, transform .1s;
+  }
+  .star-btn.filled { color: var(--cta); }
+  .star-btn:active { transform: scale(0.9); }
+
+  button.submit-btn {
+    width: 100%; padding: 15px; background: var(--cta); color: var(--white);
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 15px;
+    border: none; border-radius: 12px; cursor: pointer; margin-top: 6px;
+  }
+  button.submit-btn:active { transform: scale(0.99); }
+  button.submit-btn:disabled { background: #D8D3C8; color: #9A9488; }
+
+  .error-msg {
+    background: #FDEDEC; color: #C0392B; border: 1px solid #F5B7B1;
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 14px;
+  }
+
+  .thanks-screen {
+    display: none; text-align: center; padding: 70px 20px;
+  }
+  .thanks-screen.active { display: block; }
+  .thanks-check {
+    width: 68px; height: 68px; border-radius: 50%; background: var(--primary); color: var(--white);
+    display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 18px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="formScreen">
+  <div class="brand-mark"><span class="dot"></span><span class="brand">Salad Caffe</span></div>
+  <h1 class="page-title">How was it?</h1>
+  <div class="page-sub">Everything here is optional — answer what you'd like, skip the rest.</div>
+  <div class="fridge-context hidden" id="fridgeContext"></div>
+
+  <label for="fbName" style="margin-top:0">Your name (optional)</label>
+  <input id="fbName" placeholder="So we know who to thank" />
+
+  <div class="card">
+    <h2>Food</h2>
+    <div class="section-sub">Rate whatever you'd like — none of these are required.</div>
+
+    <label>Taste</label>
+    <div class="stars" data-field="tasteRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label>Quantity</label>
+    <div class="stars" data-field="quantityRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label>Quality</label>
+    <div class="stars" data-field="qualityRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label>How likely are you to recommend us to someone else?</label>
+    <div class="stars" data-field="recommendRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label for="fbFoodSuggestion">Suggestions about the food</label>
+    <textarea id="fbFoodSuggestion" rows="3" placeholder="Anything you'd like to see more or less of"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>Service</h2>
+    <div class="section-sub">Separate from the food — staff, checkout, the fridge itself, anything like that.</div>
+
+    <label>Service rating</label>
+    <div class="stars" data-field="serviceRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label for="fbServiceComment">Comments about the service</label>
+    <textarea id="fbServiceComment" rows="3" placeholder="Anything about the experience itself"></textarea>
+  </div>
+
+  <div id="fbError"></div>
+  <button class="submit-btn" id="submitBtn" onclick="submitFeedback()">Submit feedback</button>
+</div>
+
+<div class="thanks-screen" id="thanksScreen">
+  <div class="thanks-check">✓</div>
+  <h1 class="page-title">Thank you!</h1>
+  <div class="page-sub">Your feedback helps us do better.</div>
+</div>
+
+<script>
+const ratings = {};
+
+document.querySelectorAll('.stars').forEach((group) => {
+  const field = group.dataset.field;
+  ratings[field] = null;
+  group.querySelectorAll('.star-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const value = parseInt(btn.dataset.value, 10);
+      // Tapping the currently-selected star again clears the rating —
+      // matches "nothing is mandatory," including un-answering by mistake.
+      ratings[field] = ratings[field] === value ? null : value;
+      renderStars(group, ratings[field]);
+    });
+  });
+});
+
+function renderStars(group, value) {
+  group.querySelectorAll('.star-btn').forEach((btn) => {
+    const btnValue = parseInt(btn.dataset.value, 10);
+    btn.classList.toggle('filled', value != null && btnValue <= value);
+  });
+}
+
+// Fridge context from the QR link, if this one was fridge-scoped
+const params = new URLSearchParams(location.search);
+const fridgeCode = params.get('fridge');
+if (fridgeCode) {
+  fetch('/api/fridges/' + encodeURIComponent(fridgeCode))
+    .then((res) => res.ok ? res.json() : null)
+    .then((fridge) => {
+      if (fridge) {
+        const el = document.getElementById('fridgeContext');
+        el.textContent = 'Feedback for ' + fridge.name;
+        el.classList.remove('hidden');
+      }
+    })
+    .catch(() => {});
+}
+
+function submitFeedback() {
+  const btn = document.getElementById('submitBtn');
+  const errEl = document.getElementById('fbError');
+  errEl.innerHTML = '';
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+
+  const body = {
+    name: document.getElementById('fbName').value.trim() || undefined,
+    fridgeCode: fridgeCode || undefined,
+    tasteRating: ratings.tasteRating || undefined,
+    quantityRating: ratings.quantityRating || undefined,
+    qualityRating: ratings.qualityRating || undefined,
+    recommendRating: ratings.recommendRating || undefined,
+    foodSuggestion: document.getElementById('fbFoodSuggestion').value.trim() || undefined,
+    serviceRating: ratings.serviceRating || undefined,
+    serviceComment: document.getElementById('fbServiceComment').value.trim() || undefined,
+  };
+
+  fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+    .then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data.error && data.error.message) || 'Something went wrong — please try again.');
+      document.getElementById('formScreen').style.display = 'none';
+      document.getElementById('thanksScreen').classList.add('active');
+    })
+    .catch((e) => {
+      errEl.innerHTML = '<div class="error-msg">' + e.message + '</div>';
+      btn.disabled = false;
+      btn.textContent = 'Submit feedback';
+    });
+}
+</script>
+</body>
+</html>

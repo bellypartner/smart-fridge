@@ -79,6 +79,7 @@ model Fridge {
   stocks      FridgeStock[]
   sessions    ShoppingSession[]
   orders      Order[]
+  feedbacks   Feedback[]
 
   @@index([code])
 }
@@ -289,4 +290,32 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorId])
+}
+
+// ─────────────────────────────────────────────
+// Feedback — public, anonymous-by-default, nothing required
+// ─────────────────────────────────────────────
+
+model Feedback {
+  id              String   @id @default(cuid())
+  name            String?  // optional — "anyone" can submit, name isn't required
+  fridgeId        String?  // which fridge's QR this came from, if the QR was fridge-scoped
+  fridge          Fridge?  @relation(fields: [fridgeId], references: [id])
+
+  // Food ratings, 1-5, all independently optional
+  tasteRating     Int?
+  quantityRating  Int?
+  qualityRating   Int?
+  recommendRating Int?     // "how likely are you to recommend us to someone else"
+  foodSuggestion  String?  // short free-text
+
+  // Deliberately separate from food — a different axis entirely (staff,
+  // checkout experience, fridge cleanliness, etc.), not a sub-category of it
+  serviceRating   Int?
+  serviceComment  String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([fridgeId])
+  @@index([createdAt])
 }

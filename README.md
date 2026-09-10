@@ -564,6 +564,44 @@ escape hatch, not a substitute for fixing a broken webhook — use it only
 after confirming in Razorpay's own dashboard that the payment actually
 captured.
 
+## Customer feedback
+
+A second, separate QR flow from the shopping one — served at
+**`/feedback`**, fully public, no auth, nothing required to submit.
+
+- **Public form** — an optional name field, then two clearly separated
+  sections: **Food** (star ratings for taste, quantity, quality, and
+  "how likely to recommend us," plus a short suggestion box) and
+  **Service** (its own rating and comment, deliberately kept apart from
+  the food ratings — a bad checkout experience shouldn't drag down a
+  good meal's rating or vice versa). Every field is independently
+  optional — the submit button is never disabled waiting on required
+  input, and tapping an already-selected star clears it. Rate-limited
+  (5/minute) purely to blunt a spam flood, not to constrain a genuine
+  customer.
+- **Fridge context, optionally.** A feedback QR can be scoped to one
+  fridge (`/feedback?fridge=<code>`) or left generic. Fridge-scoped ones
+  show "Feedback for <fridge name>" and tag the submission with that
+  fridge; a generic one doesn't. Each fridge row in the dashboard has
+  its own **Feedback QR** button (same 50×25mm thermal-label print path
+  already built for fridge/batch QRs — no new print logic, just a
+  different destination URL) alongside its regular shop QR; the Feedback
+  tab also has a "Print a general feedback QR" option for a single
+  universal one if you'd rather not scope it per fridge.
+- **Dashboard "Feedback" tab** (ADMIN only) — stat cards for total
+  submissions and the average of each rating category (shown with the
+  count behind it, e.g. `4.2 ★ (12)`, so a small sample never looks as
+  confident as a large one), plus a table of every submission with food
+  and service info in clearly separated columns, filterable by fridge.
+  Averages only count entries that actually rated that specific field —
+  a mostly-blank submission doesn't drag one category's average toward
+  zero just because it answered a different one.
+- `GET /api/admin/feedback/stats` and `GET /api/admin/feedback` (both
+  ADMIN only) back the tab; `POST /api/feedback` is the public
+  submission endpoint. An unresolvable `fridgeCode` on submission never
+  fails the request — it just means no fridge gets attached, since a bad
+  QR code shouldn't be able to silently eat someone's feedback.
+
 ## Not in Phase 1 (next phases, on request)
 
 - Kitchen/admin console beyond what's in `/admin` today

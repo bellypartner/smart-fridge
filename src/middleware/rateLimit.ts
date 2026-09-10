@@ -23,3 +23,14 @@ export const otpVerifyLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// Feedback is fully public/unauthenticated — this exists purely to stop a
+// spam flood, not to constrain a genuine customer (nobody legitimately
+// submits feedback more than a few times a minute).
+export const feedbackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "RATE_LIMITED", message: "Too many submissions. Try again in a minute." } },
+});

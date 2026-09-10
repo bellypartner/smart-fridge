@@ -353,6 +353,7 @@
     <div class="nav-item" data-tab="stock" onclick="switchTab('stock')">Stock</div>
     <div class="nav-item hidden" id="salesNavItem" data-tab="sales" onclick="switchTab('sales')">Sales</div>
     <div class="nav-item hidden" id="customersNavItem" data-tab="customers" onclick="switchTab('customers')">Customers</div>
+    <div class="nav-item hidden" id="feedbackNavItem" data-tab="feedback" onclick="switchTab('feedback')">Feedback</div>
     <div class="nav-item hidden" id="staffNavItem" data-tab="staff" onclick="switchTab('staff')">Staff</div>
 
     <div class="sidebar-footer">
@@ -573,6 +574,37 @@
       </div>
     </div>
 
+    <!-- FEEDBACK -->
+    <div class="tab-panel hidden" id="tab-feedback">
+      <h1>Feedback</h1>
+      <div class="page-sub">From the feedback QR — anonymous by default, nothing was required to submit.
+        <button class="qr-btn" style="margin-left:8px" onclick="openGenericFeedbackQr()">Print a general feedback QR</button>
+        — or use each fridge's own "Feedback QR" button in the Fridges tab for location-specific ones.
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total submissions</div><div class="stat-value" id="fbStatTotal">0</div></div>
+        <div class="stat-card"><div class="stat-label">Avg taste</div><div class="stat-value accent" id="fbStatTaste">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg quantity</div><div class="stat-value accent" id="fbStatQuantity">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg quality</div><div class="stat-value accent" id="fbStatQuality">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg recommend</div><div class="stat-value accent" id="fbStatRecommend">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg service</div><div class="stat-value accent" id="fbStatService">—</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <h3>All submissions</h3>
+          <select id="feedbackFridgeFilter" class="filter-select" onchange="loadFeedback()">
+            <option value="">All fridges</option>
+          </select>
+        </div>
+        <table>
+          <thead><tr><th>Date</th><th>Name</th><th>Fridge</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
+          <tbody id="feedbackTable"><tr class="empty-row"><td colspan="7">No feedback yet</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- STAFF -->
     <div class="tab-panel hidden" id="tab-staff">
       <h1>Staff</h1>
@@ -777,6 +809,7 @@ function enterDashboard() {
     document.getElementById('staffNavItem').classList.remove('hidden');
     document.getElementById('salesNavItem').classList.remove('hidden');
     document.getElementById('customersNavItem').classList.remove('hidden');
+    document.getElementById('feedbackNavItem').classList.remove('hidden');
   }
   refreshAll();
 }
@@ -814,6 +847,7 @@ function switchTab(tab) {
   if (tab === 'sales') loadSales();
   if (tab === 'customers') loadCustomers();
   if (tab === 'staff') loadStaff();
+  if (tab === 'feedback') loadFeedback();
   closeMobileSidebar();
 }
 
@@ -844,6 +878,7 @@ function loadFridges() {
       '<tr><td>' + f.code + '</td><td>' + f.name + '</td><td>' + (f.location || '—') + '</td>' +
       '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td>' +
       '<td><button class="qr-btn" onclick="openFridgeQr(\'' + escQ(f.code) + '\', \'' + escQ(f.name) + '\')">QR</button> ' +
+      '<button class="qr-btn" onclick="openFeedbackQr(\'' + escQ(f.code) + '\', \'' + escQ(f.name) + '\')">Feedback QR</button> ' +
       '<button class="qr-btn" onclick="openEditModal(\'fridge\',\'' + f.id + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'fridge\',\'' + f.id + '\',\'' + escQ(f.name) + '\')">Delete</button></td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="5">No fridges yet</td></tr>';
@@ -1163,6 +1198,28 @@ function openFridgeQr(code, name) {
   qrState.isBatch = false;
   qrState.batch = null;
   renderQrModal('Fridge QR — ' + name, url, false);
+}
+
+function openFeedbackQr(code, name) {
+  const url = location.origin + '/feedback?fridge=' + encodeURIComponent(code);
+  qrState.text = url;
+  qrState.label = name + ' — Feedback';
+  qrState.sub = url;
+  qrState.fridgeCode = code;
+  qrState.isBatch = false;
+  qrState.batch = null;
+  renderQrModal('Feedback QR — ' + name, url, false);
+}
+
+function openGenericFeedbackQr() {
+  const url = location.origin + '/feedback';
+  qrState.text = url;
+  qrState.label = 'Feedback';
+  qrState.sub = url;
+  qrState.fridgeCode = 'FEEDBACK';
+  qrState.isBatch = false;
+  qrState.batch = null;
+  renderQrModal('Feedback QR — general', url, false);
 }
 
 // Accepts either a batch id (looked up from batchesCache — used by the
@@ -1555,6 +1612,50 @@ function openCustomerHistory(phoneEncoded, name) {
 function closeCustomerModal(event) {
   if (event && event.target !== event.currentTarget) return;
   document.getElementById('customerModal').classList.add('hidden');
+}
+
+// ── Feedback ─────────────────────────────────────────
+function formatAvg(value, count) {
+  if (value == null) return '—';
+  return value.toFixed(1) + ' ★ (' + count + ')';
+}
+
+function loadFeedback() {
+  // Fridge filter options — reuse whatever's already cached from the
+  // Fridges tab rather than a separate fetch.
+  const sel = document.getElementById('feedbackFridgeFilter');
+  if (sel.options.length <= 1 && fridgesCache.length) {
+    sel.innerHTML = '<option value="">All fridges</option>' + fridgesCache.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
+  }
+
+  api('/admin/feedback/stats').then((stats) => {
+    document.getElementById('fbStatTotal').textContent = stats.totalSubmissions;
+    document.getElementById('fbStatTaste').textContent = formatAvg(stats.avgTaste, stats.tasteCount);
+    document.getElementById('fbStatQuantity').textContent = formatAvg(stats.avgQuantity, stats.quantityCount);
+    document.getElementById('fbStatQuality').textContent = formatAvg(stats.avgQuality, stats.qualityCount);
+    document.getElementById('fbStatRecommend').textContent = formatAvg(stats.avgRecommend, stats.recommendCount);
+    document.getElementById('fbStatService').textContent = formatAvg(stats.avgService, stats.serviceCount);
+  }).catch(() => {});
+
+  const fridgeId = sel.value;
+  const qs = fridgeId ? '?fridgeId=' + encodeURIComponent(fridgeId) : '';
+  api('/admin/feedback' + qs).then((entries) => {
+    const tbody = document.getElementById('feedbackTable');
+    tbody.innerHTML = entries.length ? entries.map((f) => {
+      const foodParts = [];
+      if (f.tasteRating != null) foodParts.push('Taste ' + f.tasteRating);
+      if (f.quantityRating != null) foodParts.push('Qty ' + f.quantityRating);
+      if (f.qualityRating != null) foodParts.push('Quality ' + f.qualityRating);
+      if (f.recommendRating != null) foodParts.push('Recommend ' + f.recommendRating);
+      return '<tr><td>' + new Date(f.createdAt).toLocaleDateString() + '</td>' +
+        '<td>' + (f.name || '—') + '</td>' +
+        '<td>' + (f.fridge ? f.fridge.name : '—') + '</td>' +
+        '<td>' + (foodParts.length ? foodParts.join(', ') : '—') + '</td>' +
+        '<td>' + (f.foodSuggestion || '—') + '</td>' +
+        '<td>' + (f.serviceRating != null ? f.serviceRating + ' ★' : '—') + '</td>' +
+        '<td>' + (f.serviceComment || '—') + '</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="7">No feedback yet</td></tr>';
+  }).catch(() => {});
 }
 </script>
 </body>

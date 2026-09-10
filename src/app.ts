@@ -14,6 +14,7 @@ import sessionRoutes from "./modules/session/session.routes";
 import orderRoutes from "./modules/order/order.routes";
 import paymentRoutes from "./modules/payment/payment.routes";
 import adminRoutes from "./modules/admin/admin.routes";
+import feedbackRoutes, { adminFeedbackRouter } from "./modules/feedback/feedback.routes";
 
 export const app = express();
 
@@ -48,11 +49,17 @@ app.use("/admin", express.static(path.join(process.cwd(), "public/admin")));
 // Customer-facing PWA — scan, cart, checkout. No auth, calls /api itself.
 app.use("/shop", express.static(path.join(process.cwd(), "public/shop")));
 
+// Feedback form — public, no auth, no cart. Separate from /shop since it
+// has nothing to do with an active purchase.
+app.use("/feedback", express.static(path.join(process.cwd(), "public/feedback")));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/fridges", fridgeRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/admin/feedback", adminFeedbackRouter);
 app.use("/api/admin", adminRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
