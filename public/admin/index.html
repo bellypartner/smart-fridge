@@ -526,7 +526,7 @@
             <tbody id="stockTable"><tr class="empty-row"><td colspan="8">Select a fridge above</td></tr></tbody>
           </table>
           <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
-          <div class="field-note">"Allocated here" is the running total ever assigned to this fridge for this batch — it doesn't change from manual corrections. Use "Manual sale" to record units sold via the backup bank QR (real revenue, not waste), and "Close out" at the end of each day to record whatever's genuinely left as waste.</div>
+          <div class="field-note">"Allocated here" is the running total ever assigned to this fridge for this batch — it doesn't change from manual corrections. Use "Manual sale" for units sold via the backup bank QR and "Vending sale" for units sold through a vending machine (both real revenue, not waste), and "Close out" at the end of each day to record whatever's genuinely left as waste.</div>
         </div>
       </div>
     </div>
@@ -601,10 +601,11 @@
     <!-- FEEDBACK -->
     <div class="tab-panel hidden" id="tab-feedback">
       <h1>Feedback</h1>
-      <div class="page-sub">Two separate audiences, two separate question sets — toggle between them below.</div>
+      <div class="page-sub">Three separate audiences, toggle between them below.</div>
 
       <div style="display:flex;gap:8px;margin-bottom:22px">
         <button class="qr-btn" id="feedbackToggleFridge" onclick="switchFeedbackView('fridge')" style="background:var(--primary);color:var(--white);border-color:var(--primary)">Fridge feedback</button>
+        <button class="qr-btn" id="feedbackToggleDelivery" onclick="switchFeedbackView('delivery')">Swiggy/Zomato feedback</button>
         <button class="qr-btn" id="feedbackToggleSubscription" onclick="switchFeedbackView('subscription')">Subscription feedback</button>
       </div>
 
@@ -634,6 +635,30 @@
           <table>
             <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Fridge</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
             <tbody id="feedbackTable"><tr class="empty-row"><td colspan="8">No feedback yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SWIGGY/ZOMATO DELIVERY FEEDBACK VIEW -->
+      <div id="feedbackDeliveryView" class="hidden">
+        <div class="page-sub">From the Swiggy/Zomato order feedback link — name and phone are both required, everything else is optional.
+          <button class="qr-btn" style="margin-left:8px" onclick="openDeliveryFeedbackQr()">Print a delivery feedback QR</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Total submissions</div><div class="stat-value" id="dfbStatTotal">0</div></div>
+          <div class="stat-card"><div class="stat-label">Avg taste</div><div class="stat-value accent" id="dfbStatTaste">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg quantity</div><div class="stat-value accent" id="dfbStatQuantity">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg quality</div><div class="stat-value accent" id="dfbStatQuality">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg recommend</div><div class="stat-value accent" id="dfbStatRecommend">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg service</div><div class="stat-value accent" id="dfbStatService">—</div></div>
+        </div>
+
+        <div class="card">
+          <h3>All submissions</h3>
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
+            <tbody id="deliveryFeedbackTable"><tr class="empty-row"><td colspan="7">No feedback yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1289,6 +1314,7 @@ function renderStockTable() {
       '<td>' + r.quantitySold + '</td>' +
       '<td>' + r.quantityWasted + '</td>' +
       '<td><button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordManualSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Manual sale</button> ' +
+      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordVendingSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Vending sale</button> ' +
       '<button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button> ' +
       '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
@@ -1298,22 +1324,28 @@ function renderStockTable() {
   ) + '</td></tr>';
 }
 
-// Records a sale made via the backup bank/UPI QR — for whenever the scan
-// system is down, or a customer just chose to pay that way directly. This
-// is real revenue, not waste, so it's tracked separately from Close-out
-// and counted in Sales/COGS on the Profitability tab. Quantity can't
-// exceed what's physically available.
-function recordManualSale(fridgeId, batchId, productName, currentAvailable) {
-  const input = prompt('How many units of "' + productName + '" were sold manually (via the backup bank QR)? Up to ' + currentAvailable + ' available.', '1');
+// Records a sale made off-system — via the backup bank/UPI QR when
+// scan-and-pay is down, or via a vending machine. Either way it's real
+// revenue, not waste, so it's tracked separately from Close-out and
+// counted in Sales/COGS on the Profitability tab. Quantity can't exceed
+// what's physically available.
+function recordManualSale(fridgeId, batchId, productName, currentAvailable, channel) {
+  channel = channel || 'bank_qr';
+  const channelLabel = channel === 'vending_machine' ? 'via the vending machine' : 'manually (via the backup bank QR)';
+  const input = prompt('How many units of "' + productName + '" were sold ' + channelLabel + '? Up to ' + currentAvailable + ' available.', '1');
   if (input === null) return;
   const quantity = parseInt(input, 10);
   if (isNaN(quantity) || quantity <= 0) { alert('Enter a valid quantity'); return; }
   if (quantity > currentAvailable) { alert('Only ' + currentAvailable + ' unit(s) are available — can\'t record more than that'); return; }
-  api('/admin/fridges/' + fridgeId + '/stock/manual-sale', { method: 'POST', body: JSON.stringify({ batchId, quantity }) })
+  api('/admin/fridges/' + fridgeId + '/stock/manual-sale', { method: 'POST', body: JSON.stringify({ batchId, quantity, channel }) })
     .then(() => {
       loadFridgeStock();
     })
     .catch((e) => alert(e.message));
+}
+
+function recordVendingSale(fridgeId, batchId, productName, currentAvailable) {
+  recordManualSale(fridgeId, batchId, productName, currentAvailable, 'vending_machine');
 }
 
 function closeOutStock(fridgeId, batchId, productName, currentAvailable) {
@@ -1572,7 +1604,7 @@ function loadOrders() {
           '<tr><td>' + new Date(o.createdAt).toLocaleString() + '</td>' +
           '<td>' + o.fridge.name + '</td>' +
           '<td>' + o.customerName + '<br><span class="field-note" style="margin:0">' + o.customerPhone + '</span></td>' +
-          '<td>' + o.items.reduce((n, i) => n + i.quantity, 0) + '</td>' +
+          '<td>' + o.items.map((i) => i.quantity + '× ' + i.productNameSnapshot).join(', ') + '</td>' +
           '<td>' + money(o.totalAmount) + '</td>' +
           '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td>' +
           '<td>' + (
@@ -1816,7 +1848,7 @@ function openCustomerHistory(phoneEncoded, name) {
   api('/admin/customers/' + encodeURIComponent(phone)).then((orders) => {
     document.getElementById('customerOrdersTable').innerHTML = orders.length ? orders.map((o) => (
       '<tr><td>' + new Date(o.createdAt).toLocaleDateString() + '</td><td>' + o.fridge.name + '</td>' +
-      '<td>' + o.items.reduce((n, i) => n + i.quantity, 0) + '</td><td>' + money(o.totalAmount) + '</td>' +
+      '<td>' + o.items.map((i) => i.quantity + '× ' + i.productNameSnapshot).join(', ') + '</td><td>' + money(o.totalAmount) + '</td>' +
       '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td></tr>'
     )).join('') : '<tr><td colspan="5">No orders found</td></tr>';
   }).catch((e) => {
@@ -1931,7 +1963,7 @@ function loadFeedback() {
     sel.innerHTML = '<option value="">All fridges</option>' + fridgesCache.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
   }
 
-  api('/admin/feedback/stats').then((stats) => {
+  api('/admin/feedback/stats?source=fridge').then((stats) => {
     document.getElementById('fbStatTotal').textContent = stats.totalSubmissions;
     document.getElementById('fbStatTaste').textContent = formatAvg(stats.avgTaste, stats.tasteCount);
     document.getElementById('fbStatQuantity').textContent = formatAvg(stats.avgQuantity, stats.quantityCount);
@@ -1941,7 +1973,7 @@ function loadFeedback() {
   }).catch(() => {});
 
   const fridgeId = sel.value;
-  const qs = fridgeId ? '?fridgeId=' + encodeURIComponent(fridgeId) : '';
+  const qs = '?source=fridge' + (fridgeId ? '&fridgeId=' + encodeURIComponent(fridgeId) : '');
   api('/admin/feedback' + qs).then((entries) => {
     const tbody = document.getElementById('feedbackTable');
     tbody.innerHTML = entries.length ? entries.map((f) => {
@@ -1966,15 +1998,61 @@ function loadFeedback() {
 // simpler than a separate top-level nav item for each, since the sidebar
 // already has quite a few entries.
 function switchFeedbackView(view) {
-  document.getElementById('feedbackFridgeView').classList.toggle('hidden', view !== 'fridge');
-  document.getElementById('feedbackSubscriptionView').classList.toggle('hidden', view !== 'subscription');
-  document.getElementById('feedbackToggleFridge').style.background = view === 'fridge' ? 'var(--primary)' : '';
-  document.getElementById('feedbackToggleFridge').style.color = view === 'fridge' ? 'var(--white)' : '';
-  document.getElementById('feedbackToggleFridge').style.borderColor = view === 'fridge' ? 'var(--primary)' : '';
-  document.getElementById('feedbackToggleSubscription').style.background = view === 'subscription' ? 'var(--primary)' : '';
-  document.getElementById('feedbackToggleSubscription').style.color = view === 'subscription' ? 'var(--white)' : '';
-  document.getElementById('feedbackToggleSubscription').style.borderColor = view === 'subscription' ? 'var(--primary)' : '';
+  const views = {
+    fridge: { panel: 'feedbackFridgeView', btn: 'feedbackToggleFridge' },
+    delivery: { panel: 'feedbackDeliveryView', btn: 'feedbackToggleDelivery' },
+    subscription: { panel: 'feedbackSubscriptionView', btn: 'feedbackToggleSubscription' },
+  };
+  Object.keys(views).forEach((key) => {
+    const isActive = key === view;
+    document.getElementById(views[key].panel).classList.toggle('hidden', !isActive);
+    const btn = document.getElementById(views[key].btn);
+    btn.style.background = isActive ? 'var(--primary)' : '';
+    btn.style.color = isActive ? 'var(--white)' : '';
+    btn.style.borderColor = isActive ? 'var(--primary)' : '';
+  });
+  if (view === 'delivery') loadDeliveryFeedback();
   if (view === 'subscription') loadSubscriptionFeedback();
+}
+
+function openDeliveryFeedbackQr() {
+  const url = location.origin + '/feedback-delivery';
+  qrState.text = url;
+  qrState.label = 'Swiggy/Zomato Order Feedback';
+  qrState.sub = url;
+  qrState.fridgeCode = 'DELIVERY-FEEDBACK';
+  qrState.isBatch = false;
+  qrState.batch = null;
+  renderQrModal('Swiggy/Zomato Feedback QR', url, false);
+}
+
+function loadDeliveryFeedback() {
+  api('/admin/feedback/stats?source=swiggy_zomato').then((stats) => {
+    document.getElementById('dfbStatTotal').textContent = stats.totalSubmissions;
+    document.getElementById('dfbStatTaste').textContent = formatAvg(stats.avgTaste, stats.tasteCount);
+    document.getElementById('dfbStatQuantity').textContent = formatAvg(stats.avgQuantity, stats.quantityCount);
+    document.getElementById('dfbStatQuality').textContent = formatAvg(stats.avgQuality, stats.qualityCount);
+    document.getElementById('dfbStatRecommend').textContent = formatAvg(stats.avgRecommend, stats.recommendCount);
+    document.getElementById('dfbStatService').textContent = formatAvg(stats.avgService, stats.serviceCount);
+  }).catch(() => {});
+
+  api('/admin/feedback?source=swiggy_zomato').then((entries) => {
+    const tbody = document.getElementById('deliveryFeedbackTable');
+    tbody.innerHTML = entries.length ? entries.map((f) => {
+      const foodParts = [];
+      if (f.tasteRating != null) foodParts.push('Taste ' + f.tasteRating);
+      if (f.quantityRating != null) foodParts.push('Qty ' + f.quantityRating);
+      if (f.qualityRating != null) foodParts.push('Quality ' + f.qualityRating);
+      if (f.recommendRating != null) foodParts.push('Recommend ' + f.recommendRating);
+      return '<tr><td>' + new Date(f.createdAt).toLocaleDateString() + '</td>' +
+        '<td>' + (f.name || '—') + '</td>' +
+        '<td>' + (f.phone || '—') + '</td>' +
+        '<td>' + (foodParts.length ? foodParts.join(', ') : '—') + '</td>' +
+        '<td>' + (f.foodSuggestion || '—') + '</td>' +
+        '<td>' + (f.serviceRating != null ? f.serviceRating + ' ★' : '—') + '</td>' +
+        '<td>' + (f.serviceComment || '—') + '</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="7">No feedback yet</td></tr>';
+  }).catch(() => {});
 }
 
 function openSubscriptionFeedbackQr() {

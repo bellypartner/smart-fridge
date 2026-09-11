@@ -207,6 +207,7 @@ export const recordManualSaleSchema = z.object({
     batchId: z.string().min(1),
     quantity: z.number().int().positive(),
     note: z.string().max(200).optional(),
+    channel: z.enum(["bank_qr", "vending_machine"]).optional(),
   }),
   params: z.object({ fridgeId: z.string().min(1) }),
   query: z.object({}).optional(),
@@ -217,5 +218,6 @@ export const listManualSalesQuerySchema = z.object({
   params: z.object({}).optional(),
   query: z.object({
     fridgeId: z.string().optional(),
+    channel: z.enum(["bank_qr", "vending_machine"]).optional(),
   }),
 });

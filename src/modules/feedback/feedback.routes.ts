@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { feedbackLimiter } from "../../middleware/rateLimit";
 import {
+  createDeliveryFeedbackSchema,
   createFeedbackSchema,
   createSubscriptionFeedbackSchema,
   listFeedbackQuerySchema,
@@ -21,6 +22,17 @@ router.post(
 );
 
 export default router;
+
+// Public — Swiggy/Zomato order feedback. Same questions as fridge
+// feedback, mounted separately under /api/feedback-delivery. Phone is
+// mandatory here (see feedback.schema.ts).
+export const deliveryFeedbackRouter = Router();
+deliveryFeedbackRouter.post(
+  "/",
+  feedbackLimiter,
+  validate(createDeliveryFeedbackSchema),
+  asyncHandler(feedbackController.createDeliveryFeedback)
+);
 
 // Public — subscription feedback, mounted separately under /api/subscription-feedback
 export const subscriptionFeedbackRouter = Router();
@@ -45,6 +57,7 @@ adminFeedbackRouter.get(
 adminFeedbackRouter.get(
   "/stats",
   requireRole("ADMIN"),
+  validate(listFeedbackQuerySchema),
   asyncHandler(feedbackController.getFeedbackStats)
 );
 

@@ -235,10 +235,10 @@ router.post(
   })
 );
 
-// Records a sale made via the backup bank/UPI QR (system was down, or a
-// customer just preferred to pay that way) — real revenue, not waste.
-// KITCHEN can record these too, same as close-out, since it happens at
-// the fridge in the moment, not from an office desk.
+// Records a sale made off-system — via the backup bank/UPI QR when
+// scan-and-pay is down, or via a vending machine — real revenue, not
+// waste. KITCHEN can record these too, same as close-out, since it
+// happens at the fridge in the moment, not from an office desk.
 router.post(
   "/fridges/:fridgeId/stock/manual-sale",
   requireRole("ADMIN", "KITCHEN"),
@@ -249,7 +249,8 @@ router.post(
       req.body.batchId,
       req.body.quantity,
       req.user!.sub,
-      req.body.note
+      req.body.note,
+      req.body.channel
     );
     res.status(201).json(sale);
   })
@@ -260,8 +261,8 @@ router.get(
   requireRole("ADMIN"),
   validate(listManualSalesQuerySchema),
   asyncHandler(async (req, res) => {
-    const { fridgeId } = req.query as { fridgeId?: string };
-    res.status(200).json(await adminService.listManualSales({ fridgeId }));
+    const { fridgeId, channel } = req.query as { fridgeId?: string; channel?: string };
+    res.status(200).json(await adminService.listManualSales({ fridgeId, channel }));
   })
 );
 

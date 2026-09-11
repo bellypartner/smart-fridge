@@ -4,6 +4,7 @@ export const createFeedback = async (data: {
   name: string;
   phone?: string;
   fridgeCode?: string;
+  source?: string; // "fridge" (default) | "swiggy_zomato"
   tasteRating?: number;
   quantityRating?: number;
   qualityRating?: number;
@@ -26,6 +27,7 @@ export const createFeedback = async (data: {
     data: {
       name: data.name,
       phone: data.phone || undefined,
+      source: data.source || "fridge",
       fridgeId,
       tasteRating: data.tasteRating,
       quantityRating: data.quantityRating,
@@ -38,9 +40,16 @@ export const createFeedback = async (data: {
   });
 };
 
-export const listFeedback = (filters: { fridgeId?: string }) => {
+export const listFeedback = (filters: { fridgeId?: string; source?: string }) => {
+  const where: { fridgeId?: string; source?: string | { in: (string | null)[] } } = {};
+  if (filters.fridgeId) where.fridgeId = filters.fridgeId;
+  // Null source means "fridge" (rows from before this field existed) — so
+  // filtering for "fridge" has to include null, not just the literal string.
+  if (filters.source === "fridge") where.source = { in: ["fridge", null] };
+  else if (filters.source) where.source = filters.source;
+
   return prisma.feedback.findMany({
-    where: filters.fridgeId ? { fridgeId: filters.fridgeId } : undefined,
+    where,
     include: { fridge: true },
     orderBy: { createdAt: "desc" },
     take: 300, // pilot scale — revisit with real pagination if volume grows
@@ -51,8 +60,12 @@ export const listFeedback = (filters: { fridgeId?: string }) => {
 // approach elsewhere) — only counts entries that actually rated that
 // specific field, so a mostly-blank submission doesn't drag an average
 // toward zero.
-export const getFeedbackStats = async () => {
-  const all = await prisma.feedback.findMany();
+export const getFeedbackStats = async (source?: string) => {
+  const where: { source?: string | { in: (string | null)[] } } = {};
+  if (source === "fridge") where.source = { in: ["fridge", null] };
+  else if (source) where.source = source;
+
+  const all = await prisma.feedback.findMany({ where });
 
   const avg = (values: number[]) =>
     values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;

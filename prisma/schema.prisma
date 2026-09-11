@@ -311,8 +311,9 @@ model Feedback {
   // requirement was added. New submissions always have one; old rows
   // (if any) may not.
   name            String?
-  phone           String?  // optional — "if you want us to call, leave your number"
-  fridgeId        String?  // which fridge's QR this came from, if the QR was fridge-scoped
+  phone           String?  // optional for "fridge" source ("if you want us to call, leave your number"); mandatory for "swiggy_zomato" (enforced in feedback.schema.ts, not here — same nullable-for-safety reasoning as name above)
+  source          String?  // "fridge" | "swiggy_zomato" — same question set, different audience/channel, so one table with a discriminator rather than duplicating every rating field a second time. Null means "fridge" (rows from before this field existed).
+  fridgeId        String?  // which fridge's QR this came from, if the QR was fridge-scoped (never set for swiggy_zomato — that channel has no fridge)
   fridge          Fridge?  @relation(fields: [fridgeId], references: [id])
 
   // Food ratings, 1-5, all independently optional
@@ -330,6 +331,7 @@ model Feedback {
   createdAt       DateTime @default(now())
 
   @@index([fridgeId])
+  @@index([source])
   @@index([createdAt])
 }
 
@@ -398,6 +400,7 @@ model ManualSale {
   quantity   Int
   unitPrice  Decimal  @db.Decimal(10, 2) // snapshot of Product.sellingPrice at the moment this was recorded
   totalAmount Decimal @db.Decimal(10, 2)
+  channel    String   @default("bank_qr") // "bank_qr" (backup bank/UPI QR when scan-and-pay is down) | "vending_machine" — same reconciliation problem, same fix, just a different real-world channel
   recordedBy String?  // actorId — which admin/staff entered this
   note       String?
   recordedAt DateTime @default(now())

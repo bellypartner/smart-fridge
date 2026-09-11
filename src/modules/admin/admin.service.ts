@@ -336,7 +336,8 @@ export const recordManualSale = async (
   batchId: string,
   quantity: number,
   actorId: string,
-  note?: string
+  note?: string,
+  channel: string = "bank_qr"
 ) => {
   const stock = await prisma.fridgeStock.findUnique({
     where: { fridgeId_batchId: { fridgeId, batchId } },
@@ -345,7 +346,7 @@ export const recordManualSale = async (
   if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
   if (quantity > stock.quantityAvailable) {
     throw ApiError.conflict(
-      `Only ${stock.quantityAvailable} unit(s) are available at this fridge — can't record a manual sale for more than that`,
+      `Only ${stock.quantityAvailable} unit(s) are available at this fridge — can't record a sale for more than that`,
       "EXCEEDS_AVAILABLE"
     );
   }
@@ -360,16 +361,16 @@ export const recordManualSale = async (
     });
 
     const sale = await tx.manualSale.create({
-      data: { fridgeId, batchId, quantity, unitPrice, totalAmount, recordedBy: actorId, note },
+      data: { fridgeId, batchId, quantity, unitPrice, totalAmount, recordedBy: actorId, note, channel },
     });
 
     await tx.auditLog.create({
       data: {
         actorId,
-        action: "MANUAL_SALE_RECORDED",
+        action: channel === "vending_machine" ? "VENDING_SALE_RECORDED" : "MANUAL_SALE_RECORDED",
         entityType: "ManualSale",
         entityId: sale.id,
-        metadata: { fridgeId, batchId, quantity, totalAmount: totalAmount.toString() },
+        metadata: { fridgeId, batchId, quantity, totalAmount: totalAmount.toString(), channel },
       },
     });
 
@@ -377,9 +378,12 @@ export const recordManualSale = async (
   });
 };
 
-export const listManualSales = (filters: { fridgeId?: string }) => {
+export const listManualSales = (filters: { fridgeId?: string; channel?: string }) => {
   return prisma.manualSale.findMany({
-    where: filters.fridgeId ? { fridgeId: filters.fridgeId } : undefined,
+    where: {
+      ...(filters.fridgeId ? { fridgeId: filters.fridgeId } : {}),
+      ...(filters.channel ? { channel: filters.channel } : {}),
+    },
     include: { batch: { include: { product: true } }, fridge: true },
     orderBy: { recordedAt: "desc" },
     take: 300,

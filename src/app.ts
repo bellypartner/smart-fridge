@@ -17,6 +17,7 @@ import adminRoutes from "./modules/admin/admin.routes";
 import feedbackRoutes, {
   adminFeedbackRouter,
   adminSubscriptionFeedbackRouter,
+  deliveryFeedbackRouter,
   subscriptionFeedbackRouter,
 } from "./modules/feedback/feedback.routes";
 
@@ -62,6 +63,10 @@ app.use("/feedback", express.static(path.join(process.cwd(), "public/feedback"))
 // get this link directly, e.g. over WhatsApp).
 app.use("/subscription-feedback", express.static(path.join(process.cwd(), "public/subscription-feedback")));
 
+// Swiggy/Zomato order feedback — same questions as fridge feedback, sent
+// as a link since there's no QR to scan for a delivery-platform order.
+app.use("/feedback-delivery", express.static(path.join(process.cwd(), "public/feedback-delivery")));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/fridges", fridgeRoutes);
 app.use("/api/sessions", sessionRoutes);
@@ -70,6 +75,7 @@ app.use("/api/admin/feedback", adminFeedbackRouter);
 app.use("/api/admin/subscription-feedback", adminSubscriptionFeedbackRouter);
 app.use("/api/admin", adminRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/feedback-delivery", deliveryFeedbackRouter);
 app.use("/api/subscription-feedback", subscriptionFeedbackRouter);
 
 app.use(notFoundHandler);

@@ -588,9 +588,13 @@ The `/admin` dashboard's **Sales** tab (ADMIN only — not shown to KITCHEN
 staff, since revenue is sensitive) shows: total and today's revenue and
 paid-order counts, a best-sellers table (by quantity), revenue broken
 down by fridge, and a filterable list of recent orders (status, fridge,
-customer, item count, total). All computed from `Order`/`OrderItem` rows
-already being written by the existing checkout/webhook flow — nothing
-new to track, just a new view onto it.
+customer, **what was actually in the order** — e.g. `2× Chicken Salad,
+1× Paneer Bowl`, not just an item count — and total). The customer
+order-history modal (opened from the Customers tab) shows the same
+per-order breakdown. All computed from `Order`/`OrderItem` rows already
+being written by the existing checkout/webhook flow — `productNameSnapshot`
+on each `OrderItem` was already being stored, so this was purely a
+dashboard rendering change, nothing new to track.
 
 Stats are aggregated in application code (fetch all `PAID` orders, sum in
 JS) rather than a SQL `GROUP BY` — simple and fast enough at pilot order
@@ -674,15 +678,39 @@ nullable fields that only half apply to either side.
   `GET /api/admin/subscription-feedback` (ADMIN only);
   `POST /api/subscription-feedback` is the public submission endpoint.
 
+### Delivery feedback (Swiggy/Zomato) — `/feedback-delivery`
+
+**Shares the `Feedback` table with fridge feedback above** — same
+question set (Taste/Quantity/Quality/Recommend + a food suggestion,
+Service kept separate) since the two are genuinely identical, just
+reached differently: a `source` column (`"fridge"` | `"swiggy_zomato"`,
+null meaning `"fridge"` for rows from before this field existed)
+distinguishes them instead of duplicating every rating field a second
+time the way subscription feedback's genuinely different questions
+warranted.
+
+- **The one real difference: phone is mandatory here**, not optional —
+  a delivery-platform customer is worth following up with directly;
+  enforced both client-side (the form won't submit without it) and
+  server-side (`createDeliveryFeedbackSchema` in feedback.schema.ts).
+  No fridge context, since a Swiggy/Zomato order was never picked up
+  from a physical fridge.
+- `POST /api/feedback-delivery` is the public submission endpoint
+  (writes to the same table with `source: "swiggy_zomato"`).
+  `GET /api/admin/feedback` and `/stats` both accept an optional
+  `?source=fridge|swiggy_zomato` filter — the dashboard's Fridge and
+  Swiggy/Zomato views are the same rendering code, just scoped by this.
+
 ### Dashboard
 
-Both live under the same **"Feedback"** nav tab, switched with a toggle
-at the top (**Fridge feedback** / **Subscription feedback**) rather than
-two separate sidebar entries — each shows its own stat cards (averages
-shown with the sample count behind them, e.g. `4.2 ★ (12)`, so a small
-sample never looks as confident as a large one — only entries that
-actually rated a given field count toward its average) and its own
-submissions table with the full set of columns for that feedback type.
+All three live under the same **"Feedback"** nav tab, switched with a
+toggle at the top (**Fridge feedback** / **Swiggy/Zomato feedback** /
+**Subscription feedback**) rather than three separate sidebar entries —
+each shows its own stat cards (averages shown with the sample count
+behind them, e.g. `4.2 ★ (12)`, so a small sample never looks as
+confident as a large one — only entries that actually rated a given
+field count toward its average) and its own submissions table with the
+full set of columns for that feedback type.
 
 ## Profitability — cost tracking, refunds, expenses, gross/net margin
 
@@ -771,6 +799,13 @@ COGS into the same `sales`/`cogs` totals as app orders — the response
 `appSales` and `manualSalesTotal` as sub-lines, so it's visible how much
 of a period's revenue came from each channel without needing a
 separate report.
+
+**Vending machine sales share this same model**, via a `channel` field
+(`"bank_qr"` default, or `"vending_machine"`) rather than a second
+table — the reconciliation problem and the fix are identical, just a
+different real-world source. The Stock tab has a **Vending sale**
+button right next to **Manual sale**; both call the same endpoint with
+a different `channel` in the body.
 
 ## Not in Phase 1 (next phases, on request)
 
