@@ -388,14 +388,37 @@ between copies), so set your printer/driver's label size to match and
 "Print" sends one label per copy directly.
 
 Layout: item name (bold, large) with manufactured date **and time**,
-then weight and MRP combined onto one line (e.g. `180g · MRP ₹150`),
-then expiry date **and time** — all stacked on the left, bold
-throughout; a QR code on the right; and a **readable text strip along
-the bottom printing the batch code itself** (not just encoded in the
-QR). This matters operationally: if a scan ever fails — camera trouble,
-a damaged or smudged label — there's still a human-readable code that
-can be typed into the shop app's "Can't scan? Enter the code" fallback,
-so a failed scan never means the item is simply unbuyable.
+then weight/volume and price combined onto one line (e.g. `180g · Pay
+₹150`), then expiry date **and time** — all stacked on the left, bold
+throughout; an **18mm×18mm QR code** on the right; and a **readable
+text strip along the bottom printing the batch code itself** (not just
+encoded in the QR). This matters operationally: if a scan ever fails —
+camera trouble, a damaged or smudged label — there's still a
+human-readable code that can be typed into the shop app's "Can't scan?
+Enter the code" fallback, so a failed scan never means the item is
+simply unbuyable.
+
+**The price line shows the actual selling price, not MRP — on purpose.**
+If a customer can't scan and just calculates by hand what to pay via the
+backup bank QR (see "Manual sales" below), printing MRP would have them
+overpay relative to what the app itself would actually charge. The
+customer PWA's cart mirrors this the other way: it shows MRP
+struck-through next to the real selling price whenever they differ, the
+same "you're paying less than MRP" framing a printed discount label
+would use, just on-screen.
+
+**QR size is 18mm×18mm** — sized up from an earlier, smaller version
+after real-world feedback that a number of phone cameras couldn't
+reliably read it at the smaller size. Legibility of the physical label
+took priority over fitting the absolute maximum text on it; see the
+label-sizing history further down for how this was balanced against the
+other content on a fixed 25mm-tall label.
+
+**Products can be weighed in grams or measured in mL** —
+`Product.weightGrams` for solid/semi-solid food, `Product.volumeMl` for
+liquids like juices. A product should only have one of the two set; the
+label shows whichever is present (`180g` or `250ml`) instead of always
+assuming grams.
 
 Dates on the Mfg/Exp lines drop the year (e.g. `27/08 6:30 PM`, not
 `27/08/26 6:30 PM`) specifically to make room for the time without
@@ -723,6 +746,31 @@ bumped by an unrelated later correction (see "Perishable stock" above),
 so it isn't a reliable "when did this actually get wasted" timestamp;
 a batch is already treated as one day's production everywhere else in
 this app, so its waste is treated as belonging to that same day too.
+
+### Manual sales — for when the scan-and-pay system is down
+
+A backup bank/UPI QR is posted at each fridge for exactly this case: the
+in-app system is down (or a customer just prefers it), so they take the
+item and pay that QR directly instead. Those units are genuinely sold,
+not wasted — but the app has no `Order` for them, since there's no
+session or Razorpay payment behind a transaction it never saw. Without
+some way to record that, a physical stock count at close-out would have
+no way to explain the gap except calling it waste, which would be wrong.
+
+**`ManualSale`** is a separate, minimal model for exactly this: fridge,
+batch, quantity, and a snapshot of the product's selling price at the
+moment it's recorded. Recording one (`POST
+/api/admin/fridges/:fridgeId/stock/manual-sale`, or the **Manual sale**
+button next to **Close out** in the Stock tab — ADMIN or KITCHEN, since
+this happens at the fridge in the moment, not from an office desk)
+reduces `FridgeStock` exactly the way a real sale would
+(`quantityAvailable` down, `quantitySold` up), and can't exceed what's
+actually available. `getProfitability()` folds manual-sale revenue and
+COGS into the same `sales`/`cogs` totals as app orders — the response
+(and the Profitability tab's breakdown card) also splits `Sales` into
+`appSales` and `manualSalesTotal` as sub-lines, so it's visible how much
+of a period's revenue came from each channel without needing a
+separate report.
 
 ## Not in Phase 1 (next phases, on request)
 

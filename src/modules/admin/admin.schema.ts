@@ -31,6 +31,7 @@ export const createProductSchema = z.object({
     fatG: z.number().optional(),
     description: z.string().optional(),
     weightGrams: z.number().int().positive().optional(),
+    volumeMl: z.number().int().positive().optional(),
     mrp: z.number().positive(),
     sellingPrice: z.number().positive(),
     costPrice: z.number().positive().optional(),
@@ -103,6 +104,7 @@ export const updateProductSchema = z.object({
     fatG: z.number().optional(),
     description: z.string().optional(),
     weightGrams: z.number().int().positive().optional(),
+    volumeMl: z.number().int().positive().optional(),
     mrp: z.number().positive().optional(),
     sellingPrice: z.number().positive().optional(),
     costPrice: z.number().positive().optional(),
@@ -197,5 +199,23 @@ export const profitabilityQuerySchema = z.object({
   query: z.object({
     from: z.string().datetime(),
     to: z.string().datetime(),
+  }),
+});
+
+export const recordManualSaleSchema = z.object({
+  body: z.object({
+    batchId: z.string().min(1),
+    quantity: z.number().int().positive(),
+    note: z.string().max(200).optional(),
+  }),
+  params: z.object({ fridgeId: z.string().min(1) }),
+  query: z.object({}).optional(),
+});
+
+export const listManualSalesQuerySchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({
+    fridgeId: z.string().optional(),
   }),
 });

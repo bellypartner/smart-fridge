@@ -12,9 +12,11 @@ import {
   customerPhoneParamSchema,
   idParamSchema,
   listExpensesQuerySchema,
+  listManualSalesQuerySchema,
   listOrdersQuerySchema,
   markOrderPaidSchema,
   profitabilityQuerySchema,
+  recordManualSaleSchema,
   recordRefundSchema,
   stockParamSchema,
   updateBatchStatusSchema,
@@ -230,6 +232,36 @@ router.post(
   asyncHandler(async (req, res) => {
     const result = await adminService.closeOutStock(req.params.fridgeId, req.params.batchId);
     res.status(200).json(result);
+  })
+);
+
+// Records a sale made via the backup bank/UPI QR (system was down, or a
+// customer just preferred to pay that way) — real revenue, not waste.
+// KITCHEN can record these too, same as close-out, since it happens at
+// the fridge in the moment, not from an office desk.
+router.post(
+  "/fridges/:fridgeId/stock/manual-sale",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(recordManualSaleSchema),
+  asyncHandler(async (req, res) => {
+    const sale = await adminService.recordManualSale(
+      req.params.fridgeId,
+      req.body.batchId,
+      req.body.quantity,
+      req.user!.sub,
+      req.body.note
+    );
+    res.status(201).json(sale);
+  })
+);
+
+router.get(
+  "/manual-sales",
+  requireRole("ADMIN"),
+  validate(listManualSalesQuerySchema),
+  asyncHandler(async (req, res) => {
+    const { fridgeId } = req.query as { fridgeId?: string };
+    res.status(200).json(await adminService.listManualSales({ fridgeId }));
   })
 );
 

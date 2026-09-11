@@ -122,6 +122,7 @@
   .cart-line .info { flex: 1; min-width: 0; }
   .cart-line .name { font-size: 14px; font-weight: 600; color: var(--heading); }
   .cart-line .price { font-size: 12px; color: var(--body); }
+  .cart-line .price .mrp-struck { text-decoration: line-through; color: #9A9488; margin-right: 4px; }
   .qty-control { display: flex; align-items: center; gap: 10px; }
   .qty-control button {
     width: 30px; height: 30px; border-radius: 50%; background: var(--white); border: 1.5px solid var(--border);
@@ -428,17 +429,20 @@ function renderCartSheet() {
     return;
   }
   document.getElementById('checkoutBtn').disabled = false;
-  list.innerHTML = cart.items.map((item) => (
-    '<div class="cart-line">' +
+  list.innerHTML = cart.items.map((item) => {
+    const mrp = Number(item.batch.product.mrp);
+    const price = Number(item.unitPrice);
+    const mrpHtml = mrp > price ? '<span class="mrp-struck">₹' + mrp + '</span>' : '';
+    return '<div class="cart-line">' +
     (item.batch.product.imageUrl ? '<img src="' + item.batch.product.imageUrl + '">' : '<img>') +
     '<div class="info"><div class="name">' + item.batch.product.name + '</div>' +
-    '<div class="price">₹' + item.unitPrice + ' each</div></div>' +
+    '<div class="price">' + mrpHtml + '₹' + price + ' each</div></div>' +
     '<div class="qty-control">' +
     '<button onclick="changeQty(\'' + item.id + '\', ' + (item.quantity - 1) + ')">−</button>' +
     '<span class="qty-val">' + item.quantity + '</span>' +
     '<button onclick="changeQty(\'' + item.id + '\', ' + (item.quantity + 1) + ')">+</button>' +
-    '</div></div>'
-  )).join('');
+    '</div></div>';
+  }).join('');
 
   document.getElementById('cartTotalsBlock').innerHTML =
     '<div class="totals-row"><span>Subtotal</span><span>₹' + Number(cart.subtotal).toFixed(2) + '</span></div>' +

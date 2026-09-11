@@ -50,6 +50,7 @@ export const createProduct = async (data: {
   fatG?: number;
   description?: string;
   weightGrams?: number;
+  volumeMl?: number;
   mrp: number;
   sellingPrice: number;
   costPrice?: number;
@@ -74,6 +75,7 @@ export const updateProduct = async (
     fatG: number;
     description: string;
     weightGrams: number;
+    volumeMl: number;
     mrp: number;
     sellingPrice: number;
     costPrice: number;
@@ -319,6 +321,68 @@ export const closeOutStock = async (fridgeId: string, batchId: string) => {
     }
 
     return { stock: updatedStock, wastedNow };
+  });
+};
+
+// A backup bank/UPI QR is posted at each fridge for when scan-and-pay is
+// down — a customer takes the item and pays that directly. This records
+// those units as a real sale (not waste): reduces FridgeStock the same
+// way an actual Order would, snapshots the product's current selling
+// price, and feeds into getProfitability() alongside Orders so Sales/COGS
+// reflect it. Quantity can't exceed what's actually available — you can't
+// manually sell more than what's physically sitting in the fridge.
+export const recordManualSale = async (
+  fridgeId: string,
+  batchId: string,
+  quantity: number,
+  actorId: string,
+  note?: string
+) => {
+  const stock = await prisma.fridgeStock.findUnique({
+    where: { fridgeId_batchId: { fridgeId, batchId } },
+    include: { batch: { include: { product: true } } },
+  });
+  if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
+  if (quantity > stock.quantityAvailable) {
+    throw ApiError.conflict(
+      `Only ${stock.quantityAvailable} unit(s) are available at this fridge — can't record a manual sale for more than that`,
+      "EXCEEDS_AVAILABLE"
+    );
+  }
+
+  const unitPrice = stock.batch.product.sellingPrice;
+  const totalAmount = unitPrice.mul(quantity);
+
+  return prisma.$transaction(async (tx) => {
+    await tx.fridgeStock.update({
+      where: { fridgeId_batchId: { fridgeId, batchId } },
+      data: { quantityAvailable: { decrement: quantity }, quantitySold: { increment: quantity } },
+    });
+
+    const sale = await tx.manualSale.create({
+      data: { fridgeId, batchId, quantity, unitPrice, totalAmount, recordedBy: actorId, note },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        action: "MANUAL_SALE_RECORDED",
+        entityType: "ManualSale",
+        entityId: sale.id,
+        metadata: { fridgeId, batchId, quantity, totalAmount: totalAmount.toString() },
+      },
+    });
+
+    return sale;
+  });
+};
+
+export const listManualSales = (filters: { fridgeId?: string }) => {
+  return prisma.manualSale.findMany({
+    where: filters.fridgeId ? { fridgeId: filters.fridgeId } : undefined,
+    include: { batch: { include: { product: true } }, fridge: true },
+    orderBy: { recordedAt: "desc" },
+    take: 300,
   });
 };
 
@@ -581,7 +645,7 @@ export const getProfitability = async (from: Date, to: Date) => {
     include: { items: { include: { batch: true } } },
   });
 
-  const sales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+  const appSales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
   const refunds = orders.reduce((sum, o) => sum + Number(o.refundAmount ?? 0), 0);
 
   let cogs = 0;
@@ -595,6 +659,25 @@ export const getProfitability = async (from: Date, to: Date) => {
       }
     }
   }
+
+  // Manual sales — units sold via the backup bank QR when scan-and-pay was
+  // down. Real revenue, just outside the app, so they're folded into the
+  // same Sales/COGS totals rather than tracked as a separate category that
+  // profitability would otherwise miss.
+  const manualSales = await prisma.manualSale.findMany({
+    where: { recordedAt: { gte: from, lte: to } },
+    include: { batch: true },
+  });
+  const manualSalesTotal = manualSales.reduce((sum, m) => sum + Number(m.totalAmount), 0);
+  for (const sale of manualSales) {
+    if (sale.batch.costPricePerUnit != null) {
+      cogs += Number(sale.batch.costPricePerUnit) * sale.quantity;
+    } else {
+      itemsMissingCost += sale.quantity;
+    }
+  }
+
+  const sales = appSales + manualSalesTotal;
 
   const wastedStockRows = await prisma.fridgeStock.findMany({
     where: { quantityWasted: { gt: 0 }, batch: { manufacturedAt: { gte: from, lte: to } } },
@@ -619,6 +702,8 @@ export const getProfitability = async (from: Date, to: Date) => {
 
   return {
     sales,
+    appSales,
+    manualSalesTotal,
     refunds,
     cogs,
     wastageCost,

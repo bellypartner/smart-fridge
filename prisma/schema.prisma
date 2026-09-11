@@ -80,6 +80,7 @@ model Fridge {
   sessions    ShoppingSession[]
   orders      Order[]
   feedbacks   Feedback[]
+  manualSales ManualSale[]
 
   @@index([code])
 }
@@ -118,7 +119,8 @@ model Product {
   carbsG        Float?
   fatG          Float?
   description   String?
-  weightGrams   Int?     // shown on the printed batch label
+  weightGrams   Int?     // shown on the printed batch label — for solid/semi-solid food. Use volumeMl instead for liquids (juices etc.); a product should only have one of the two set, not both.
+  volumeMl      Int?     // ml-based quantity, for juices and other liquids — shown on the label instead of weightGrams when set
   mrp           Decimal  @db.Decimal(10, 2)
   sellingPrice  Decimal  @db.Decimal(10, 2)
   costPrice     Decimal? @db.Decimal(10, 2) // cost to make one unit — for COGS/margin reporting. Nullable: not every product will have this entered right away, and profitability reporting simply excludes what isn't costed rather than assuming zero.
@@ -155,6 +157,7 @@ model Batch {
   stocks         FridgeStock[]
   cartItems      CartItem[]
   orderItems     OrderItem[]
+  manualSales    ManualSale[]
 
   @@index([batchCode])
   @@index([productId])
@@ -372,4 +375,34 @@ model Expense {
   createdAt   DateTime @default(now())
 
   @@index([incurredOn])
+}
+
+// ─────────────────────────────────────────────
+// Manual sales — a backup bank/UPI QR is posted at each fridge for when
+// the scan-and-pay system is down; a customer takes the item and pays
+// that QR directly instead. Those units are real, paid sales — not
+// waste — but the system has no Order for them (no session, no
+// Razorpay payment). This is how they get recorded: reduces
+// FridgeStock the same way a real sale does, and feeds Sales/COGS in
+// getProfitability() alongside actual Orders, so a physical-count
+// reconciliation isn't forced to call them "wasted" just because the
+// app didn't see the transaction.
+// ─────────────────────────────────────────────
+
+model ManualSale {
+  id         String   @id @default(cuid())
+  fridgeId   String
+  fridge     Fridge   @relation(fields: [fridgeId], references: [id])
+  batchId    String
+  batch      Batch    @relation(fields: [batchId], references: [id])
+  quantity   Int
+  unitPrice  Decimal  @db.Decimal(10, 2) // snapshot of Product.sellingPrice at the moment this was recorded
+  totalAmount Decimal @db.Decimal(10, 2)
+  recordedBy String?  // actorId — which admin/staff entered this
+  note       String?
+  recordedAt DateTime @default(now())
+
+  @@index([fridgeId])
+  @@index([batchId])
+  @@index([recordedAt])
 }
