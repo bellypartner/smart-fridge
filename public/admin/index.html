@@ -195,6 +195,10 @@
   th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--body); padding: 10px 12px; border-bottom: 1.5px solid var(--border); }
   td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--heading); }
   tr:last-child td { border-bottom: none; }
+  .breakdown-table td { padding: 9px 4px; border-bottom: none; font-size: 14px; }
+  .breakdown-table .amt { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .breakdown-table .neg { color: #C0392B; }
+  .breakdown-table .total-row td { border-top: 1.5px solid var(--border); padding-top: 12px; font-weight: 700; font-size: 15px; }
   .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
   .badge-active { background: #EAF6EB; color: var(--primary); }
   .badge-inactive { background: #F4F1EA; color: var(--body); }
@@ -354,6 +358,7 @@
     <div class="nav-item hidden" id="salesNavItem" data-tab="sales" onclick="switchTab('sales')">Sales</div>
     <div class="nav-item hidden" id="customersNavItem" data-tab="customers" onclick="switchTab('customers')">Customers</div>
     <div class="nav-item hidden" id="feedbackNavItem" data-tab="feedback" onclick="switchTab('feedback')">Feedback</div>
+    <div class="nav-item hidden" id="profitabilityNavItem" data-tab="profitability" onclick="switchTab('profitability')">Profitability</div>
     <div class="nav-item hidden" id="staffNavItem" data-tab="staff" onclick="switchTab('staff')">Staff</div>
 
     <div class="sidebar-footer">
@@ -427,6 +432,8 @@
             <div><label>MRP (₹)</label><input id="prodMrp" type="number" placeholder="220" /></div>
             <div><label>Selling price (₹)</label><input id="prodPrice" type="number" placeholder="199" /></div>
           </div>
+          <label>Cost price (₹) — what it costs you to make one unit, for profit reporting (optional)</label>
+          <input id="prodCostPrice" type="number" placeholder="80" />
           <div class="form-row-2">
             <div><label>GST %</label><input id="prodGst" type="number" placeholder="5" /></div>
             <div><label>Shelf life (hours)</label><input id="prodShelf" type="number" placeholder="24" /></div>
@@ -654,6 +661,57 @@
       </div>
     </div>
 
+    <!-- PROFITABILITY -->
+    <div class="tab-panel hidden" id="tab-profitability">
+      <h1>Profitability</h1>
+      <div class="page-sub">Gross Profit = Sales − Refunds − COGS − Wastage cost. Net Profit = Gross Profit − Expenses.</div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="form-row-2">
+          <div><label>From</label><input id="profitFrom" type="date" onchange="loadProfitability()" /></div>
+          <div><label>To</label><input id="profitTo" type="date" onchange="loadProfitability()" /></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Breakdown</h3>
+          <table class="breakdown-table">
+            <tr><td>Sales</td><td id="pfSales" class="amt">—</td></tr>
+            <tr><td>− Refunds</td><td id="pfRefunds" class="amt neg">—</td></tr>
+            <tr><td>− COGS</td><td id="pfCogs" class="amt neg">—</td></tr>
+            <tr><td>− Wastage cost</td><td id="pfWastage" class="amt neg">—</td></tr>
+            <tr class="total-row"><td>Gross Profit</td><td id="pfGrossProfit" class="amt">—</td></tr>
+            <tr><td>Gross Margin</td><td id="pfGrossMargin" class="amt">—</td></tr>
+            <tr><td>− Expenses (this period)</td><td id="pfExpenses" class="amt neg">—</td></tr>
+            <tr class="total-row"><td>Net Profit</td><td id="pfNetProfit" class="amt">—</td></tr>
+          </table>
+          <div id="pfIncompleteNote" class="field-note hidden"></div>
+        </div>
+
+        <div class="card">
+          <h3>Add an expense</h3>
+          <label>Description</label>
+          <input id="expDescription" placeholder="e.g. Shop rent — August" />
+          <label>Category (optional)</label>
+          <input id="expCategory" placeholder="e.g. Rent, Salaries, Utilities" />
+          <div class="form-row-2">
+            <div><label>Amount (₹)</label><input id="expAmount" type="number" placeholder="15000" /></div>
+            <div><label>Date</label><input id="expDate" type="date" /></div>
+          </div>
+          <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createExpense()">Add expense</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h3>Expenses in this period</h3>
+        <table>
+          <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th></th></tr></thead>
+          <tbody id="expensesTable"><tr class="empty-row"><td colspan="5">No expenses in this period</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- STAFF -->
     <div class="tab-panel hidden" id="tab-staff">
       <h1>Staff</h1>
@@ -859,6 +917,7 @@ function enterDashboard() {
     document.getElementById('salesNavItem').classList.remove('hidden');
     document.getElementById('customersNavItem').classList.remove('hidden');
     document.getElementById('feedbackNavItem').classList.remove('hidden');
+    document.getElementById('profitabilityNavItem').classList.remove('hidden');
   }
   refreshAll();
 }
@@ -897,6 +956,7 @@ function switchTab(tab) {
   if (tab === 'customers') loadCustomers();
   if (tab === 'staff') loadStaff();
   if (tab === 'feedback') loadFeedback();
+  if (tab === 'profitability') loadProfitability();
   closeMobileSidebar();
 }
 
@@ -1034,6 +1094,7 @@ function createProduct() {
     categoryId: document.getElementById('prodCategory').value,
     mrp: parseFloat(document.getElementById('prodMrp').value),
     sellingPrice: parseFloat(document.getElementById('prodPrice').value),
+    costPrice: document.getElementById('prodCostPrice').value ? parseFloat(document.getElementById('prodCostPrice').value) : undefined,
     gstPercent: parseFloat(document.getElementById('prodGst').value || '0'),
     shelfLifeHours: parseInt(document.getElementById('prodShelf').value, 10),
     weightGrams: document.getElementById('prodWeight').value ? parseInt(document.getElementById('prodWeight').value, 10) : undefined,
@@ -1045,7 +1106,7 @@ function createProduct() {
   }
   api('/admin/products', { method: 'POST', body: JSON.stringify(body) })
     .then(() => {
-      ['prodSku','prodName','prodMrp','prodPrice','prodGst','prodShelf','prodWeight','prodDesc'].forEach((id) => document.getElementById(id).value = '');
+      ['prodSku','prodName','prodMrp','prodPrice','prodCostPrice','prodGst','prodShelf','prodWeight','prodDesc'].forEach((id) => document.getElementById(id).value = '');
       document.getElementById('prodCategory').value = '';
       document.getElementById('prodImgFile').value = '';
       const preview = document.getElementById('prodImgPreview');
@@ -1480,7 +1541,10 @@ function loadOrders() {
           '<td>' + o.items.reduce((n, i) => n + i.quantity, 0) + '</td>' +
           '<td>' + money(o.totalAmount) + '</td>' +
           '<td><span class="badge ' + (badgeClass[o.status] || 'badge-inactive') + '">' + o.status + '</span></td>' +
-          '<td>' + (o.status === 'PENDING' ? '<button class="qr-btn" onclick="markOrderPaid(\'' + o.id + '\')">Mark as paid</button>' : '') + '</td></tr>'
+          '<td>' + (
+            o.status === 'PENDING' ? '<button class="qr-btn" onclick="markOrderPaid(\'' + o.id + '\')">Mark as paid</button>' :
+            o.status === 'PAID' ? '<button class="qr-btn" onclick="refundOrder(\'' + o.id + '\',' + o.totalAmount + ')">Refund</button>' : ''
+          ) + '</td></tr>'
         )).join('')
       : '<tr class="empty-row"><td colspan="7">No orders yet</td></tr>';
   }).catch(() => {});
@@ -1494,6 +1558,22 @@ function markOrderPaid(orderId) {
   if (!confirm('Only do this if you\'ve confirmed in Razorpay\'s dashboard that this payment was actually captured. Mark this order as paid?')) return;
   const paymentId = prompt('Optional: paste the Razorpay payment ID for the record (from Razorpay Dashboard \u2192 Payments). Leave blank to skip.') || undefined;
   api('/admin/orders/' + orderId + '/mark-paid', { method: 'POST', body: JSON.stringify({ razorpayPaymentId: paymentId }) })
+    .then(() => {
+      loadOrders();
+      loadSalesStats();
+    })
+    .catch((e) => alert(e.message));
+}
+
+// This records the refund for reporting — it does NOT call Razorpay's
+// refund API to actually move money. Process the real refund in Razorpay's
+// dashboard first, then record it here so profitability numbers reflect it.
+function refundOrder(orderId, totalAmount) {
+  const input = prompt('Refund amount in ₹ (up to the order total of ₹' + totalAmount + '). This only records the refund for reporting — process the actual refund in Razorpay\'s dashboard first.', totalAmount);
+  if (input === null) return;
+  const refundAmount = parseFloat(input);
+  if (isNaN(refundAmount) || refundAmount <= 0) { alert('Enter a valid refund amount'); return; }
+  api('/admin/orders/' + orderId + '/refund', { method: 'POST', body: JSON.stringify({ refundAmount }) })
     .then(() => {
       loadOrders();
       loadSalesStats();
@@ -1519,6 +1599,7 @@ const EDIT_CONFIGS = {
     { key: 'categoryId', label: 'Category', type: 'select', value: p.categoryId, options: categoriesCache.map((c) => [c.id, c.name]) },
     { key: 'mrp', label: 'MRP (₹)', type: 'number', value: p.mrp },
     { key: 'sellingPrice', label: 'Selling price (₹)', type: 'number', value: p.sellingPrice },
+    { key: 'costPrice', label: 'Cost price (₹) — what it costs to make one unit', type: 'number', value: p.costPrice },
     { key: 'gstPercent', label: 'GST %', type: 'number', value: p.gstPercent },
     { key: 'shelfLifeHours', label: 'Shelf life (hours)', type: 'number', value: p.shelfLifeHours },
     { key: 'weightGrams', label: 'Weight (g)', type: 'number', value: p.weightGrams },
@@ -1717,6 +1798,92 @@ function closeCustomerModal(event) {
 function formatAvg(value, count) {
   if (value == null) return '—';
   return value.toFixed(1) + ' ★ (' + count + ')';
+}
+
+// ── Profitability ────────────────────────────
+// Date inputs are interpreted in the browser's local time (not UTC) so
+// "today" means the user's actual today — .toISOString() then converts
+// that local instant to the UTC timestamp the API expects.
+function toStartOfDayISO(dateStr) { return new Date(dateStr + 'T00:00:00').toISOString(); }
+function toEndOfDayISO(dateStr) { return new Date(dateStr + 'T23:59:59.999').toISOString(); }
+
+function ensureDefaultProfitDates() {
+  const fromEl = document.getElementById('profitFrom');
+  const toEl = document.getElementById('profitTo');
+  if (!fromEl.value) {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    fromEl.value = firstOfMonth.toISOString().slice(0, 10);
+  }
+  if (!toEl.value) {
+    toEl.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+function loadProfitability() {
+  ensureDefaultProfitDates();
+  const from = toStartOfDayISO(document.getElementById('profitFrom').value);
+  const to = toEndOfDayISO(document.getElementById('profitTo').value);
+
+  api('/admin/profitability?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((p) => {
+    document.getElementById('pfSales').textContent = money(p.sales);
+    document.getElementById('pfRefunds').textContent = money(p.refunds);
+    document.getElementById('pfCogs').textContent = money(p.cogs);
+    document.getElementById('pfWastage').textContent = money(p.wastageCost);
+    document.getElementById('pfGrossProfit').textContent = money(p.grossProfit);
+    document.getElementById('pfGrossMargin').textContent = p.grossMarginPct != null ? p.grossMarginPct.toFixed(1) + '%' : '—';
+    document.getElementById('pfExpenses').textContent = money(p.totalExpenses);
+    document.getElementById('pfNetProfit').textContent = money(p.netProfit);
+
+    const note = document.getElementById('pfIncompleteNote');
+    if (p.itemsMissingCost > 0 || p.wastedUnitsMissingCost > 0) {
+      const parts = [];
+      if (p.itemsMissingCost > 0) parts.push(p.itemsMissingCost + ' sold unit(s)');
+      if (p.wastedUnitsMissingCost > 0) parts.push(p.wastedUnitsMissingCost + ' wasted unit(s)');
+      note.textContent = '⚠️ COGS/wastage cost above is incomplete — ' + parts.join(' and ') + ' had no cost price set on their product at the time, so they\'re excluded rather than assumed free. Set a cost price in the Products tab to fix this going forward.';
+      note.classList.remove('hidden');
+    } else {
+      note.classList.add('hidden');
+    }
+  }).catch(() => {});
+
+  api('/admin/expenses?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((expenses) => {
+    const tbody = document.getElementById('expensesTable');
+    tbody.innerHTML = expenses.length ? expenses.map((e) => (
+      '<tr><td>' + new Date(e.incurredOn).toLocaleDateString() + '</td><td>' + e.description + '</td>' +
+      '<td>' + (e.category || '—') + '</td><td>' + money(e.amount) + '</td>' +
+      '<td><button class="delete-link" onclick="deleteExpenseRow(\'' + e.id + '\',\'' + escQ(e.description) + '\')">Delete</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="5">No expenses in this period</td></tr>';
+  }).catch(() => {});
+}
+
+function createExpense() {
+  const dateVal = document.getElementById('expDate').value || new Date().toISOString().slice(0, 10);
+  const body = {
+    description: document.getElementById('expDescription').value.trim(),
+    category: document.getElementById('expCategory').value.trim() || undefined,
+    amount: parseFloat(document.getElementById('expAmount').value),
+    incurredOn: toStartOfDayISO(dateVal),
+  };
+  if (!body.description || isNaN(body.amount) || body.amount <= 0) {
+    alert('Description and a valid amount are required'); return;
+  }
+  api('/admin/expenses', { method: 'POST', body: JSON.stringify(body) })
+    .then(() => {
+      document.getElementById('expDescription').value = '';
+      document.getElementById('expCategory').value = '';
+      document.getElementById('expAmount').value = '';
+      document.getElementById('expDate').value = '';
+      loadProfitability();
+    })
+    .catch((e) => alert(e.message));
+}
+
+function deleteExpenseRow(id, description) {
+  if (!confirm('Delete the expense "' + description + '"?')) return;
+  api('/admin/expenses/' + id, { method: 'DELETE' })
+    .then(() => loadProfitability())
+    .catch((e) => alert(e.message));
 }
 
 function loadFeedback() {

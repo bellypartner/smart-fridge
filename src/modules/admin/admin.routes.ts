@@ -6,12 +6,16 @@ import {
   allocateStockSchema,
   createBatchSchema,
   createCategorySchema,
+  createExpenseSchema,
   createFridgeSchema,
   createProductSchema,
   customerPhoneParamSchema,
   idParamSchema,
+  listExpensesQuerySchema,
   listOrdersQuerySchema,
   markOrderPaidSchema,
+  profitabilityQuerySchema,
+  recordRefundSchema,
   stockParamSchema,
   updateBatchStatusSchema,
   updateCategorySchema,
@@ -264,6 +268,62 @@ router.post(
       req.body?.razorpayPaymentId
     );
     res.status(200).json(order);
+  })
+);
+
+// Manual record — does NOT call Razorpay's refund API. Process the actual
+// refund there first, then record it here so profitability reflects it.
+router.post(
+  "/orders/:orderId/refund",
+  requireRole("ADMIN"),
+  validate(recordRefundSchema),
+  asyncHandler(async (req, res) => {
+    const order = await adminService.recordRefund(req.params.orderId, req.user!.sub, req.body.refundAmount);
+    res.status(200).json(order);
+  })
+);
+
+// ── Expenses — ADMIN only ───────────────────────────────────
+router.post(
+  "/expenses",
+  requireRole("ADMIN"),
+  validate(createExpenseSchema),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await adminService.createExpense(req.body));
+  })
+);
+
+router.get(
+  "/expenses",
+  requireRole("ADMIN"),
+  validate(listExpensesQuerySchema),
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query as { from?: string; to?: string };
+    res.status(200).json(await adminService.listExpenses({
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+    }));
+  })
+);
+
+router.delete(
+  "/expenses/:id",
+  requireRole("ADMIN"),
+  validate(idParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteExpense(req.params.id);
+    res.status(204).send();
+  })
+);
+
+// ── Profitability — ADMIN only ──────────────────────────────
+router.get(
+  "/profitability",
+  requireRole("ADMIN"),
+  validate(profitabilityQuerySchema),
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query as { from: string; to: string };
+    res.status(200).json(await adminService.getProfitability(new Date(from), new Date(to)));
   })
 );
 

@@ -33,6 +33,7 @@ export const createProductSchema = z.object({
     weightGrams: z.number().int().positive().optional(),
     mrp: z.number().positive(),
     sellingPrice: z.number().positive(),
+    costPrice: z.number().positive().optional(),
     gstPercent: z.number().min(0).max(28).default(0),
     shelfLifeHours: z.number().int().positive(),
   }),
@@ -104,6 +105,7 @@ export const updateProductSchema = z.object({
     weightGrams: z.number().int().positive().optional(),
     mrp: z.number().positive().optional(),
     sellingPrice: z.number().positive().optional(),
+    costPrice: z.number().positive().optional(),
     gstPercent: z.number().min(0).max(28).optional(),
     shelfLifeHours: z.number().int().positive().optional(),
     isActive: z.boolean().optional(),
@@ -159,4 +161,41 @@ export const markOrderPaidSchema = z.object({
   }).optional(),
   params: z.object({ orderId: z.string().min(1) }),
   query: z.object({}).optional(),
+});
+
+export const recordRefundSchema = z.object({
+  body: z.object({
+    refundAmount: z.number().positive(),
+  }),
+  params: z.object({ orderId: z.string().min(1) }),
+  query: z.object({}).optional(),
+});
+
+export const createExpenseSchema = z.object({
+  body: z.object({
+    description: z.string().min(1).max(200),
+    category: z.string().max(80).optional(),
+    amount: z.number().positive(),
+    incurredOn: z.string().datetime(),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const listExpensesQuerySchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+  }),
+});
+
+export const profitabilityQuerySchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({
+    from: z.string().datetime(),
+    to: z.string().datetime(),
+  }),
 });

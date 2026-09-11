@@ -121,6 +121,7 @@ model Product {
   weightGrams   Int?     // shown on the printed batch label
   mrp           Decimal  @db.Decimal(10, 2)
   sellingPrice  Decimal  @db.Decimal(10, 2)
+  costPrice     Decimal? @db.Decimal(10, 2) // cost to make one unit — for COGS/margin reporting. Nullable: not every product will have this entered right away, and profitability reporting simply excludes what isn't costed rather than assuming zero.
   gstPercent    Decimal  @db.Decimal(5, 2) @default(0)
   shelfLifeHours Int
   isActive      Boolean  @default(true)
@@ -148,6 +149,7 @@ model Batch {
   expiresAt      DateTime    // auto-computed from manufacturedAt + Product.shelfLifeHours
   status         BatchStatus @default(ACTIVE)
   totalQuantity  Int?        // total units produced in this run — nullable so existing batches from before this field existed aren't broken. Allocation to fridges (FridgeStock.quantityAllocated, summed across all fridges for this batch) is capped against this when set; unset means uncapped, for backward compatibility.
+  costPricePerUnit Decimal?  @db.Decimal(10, 2) // snapshotted from Product.costPrice at batch-creation time — same reasoning as OrderItem.unitPrice below: a later cost change shouldn't retroactively rewrite what a batch actually cost to make. Null if the product had no cost price set at the time.
   createdAt      DateTime    @default(now())
 
   stocks         FridgeStock[]
@@ -251,6 +253,8 @@ model Order {
   totalAmount       Decimal     @db.Decimal(10, 2)
   razorpayOrderId   String?     @unique
   razorpayPaymentId String?     @unique
+  refundAmount      Decimal?    @db.Decimal(10, 2) // set when status becomes REFUNDED — a manual record, not a live Razorpay refund API call (see admin.service.ts)
+  refundedAt        DateTime?
   createdAt         DateTime    @default(now())
   paidAt            DateTime?
 
@@ -350,4 +354,22 @@ model SubscriptionFeedback {
   createdAt            DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────
+// Expenses — month-end operating costs (rent, salaries, utilities, etc.)
+// Deliberately separate from COGS/wastage: those feed Gross Profit,
+// expenses here are the next layer down to Net Profit. See
+// admin.service.ts getProfitability().
+// ─────────────────────────────────────────────
+
+model Expense {
+  id          String   @id @default(cuid())
+  description String
+  category    String?  // free-text — rent, salaries, utilities, marketing, etc.
+  amount      Decimal  @db.Decimal(10, 2)
+  incurredOn  DateTime // which month/date this expense belongs to, for period filtering — not necessarily when it was entered into the system
+  createdAt   DateTime @default(now())
+
+  @@index([incurredOn])
 }

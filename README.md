@@ -256,6 +256,11 @@ DELETE /api/admin/fridges/:fridgeId/stock/:batchId   ADMIN, KITCHEN — blocked 
 POST   /api/admin/fridges/:fridgeId/stock/:batchId/close-out   ADMIN, KITCHEN — records leftover as waste, zeroes availability, flips batch to EXPIRED
 GET    /api/admin/customers           ADMIN only — grouped by phone, with spend/frequency
 GET    /api/admin/customers/:phone    ADMIN only — that customer's full order history
+POST   /api/admin/orders/:orderId/refund   ADMIN only — records a refund (manual — doesn't call Razorpay)
+POST   /api/admin/expenses            ADMIN only — { description, category?, amount, incurredOn }
+GET    /api/admin/expenses            ADMIN only — ?from&to to scope to a period
+DELETE /api/admin/expenses/:id        ADMIN only
+GET    /api/admin/profitability       ADMIN only — ?from&to (required) — the Sales/Refunds/COGS/Wastage/Gross/Net breakdown
 ```
 
 ## Business rules encoded here
@@ -655,6 +660,69 @@ shown with the sample count behind them, e.g. `4.2 ★ (12)`, so a small
 sample never looks as confident as a large one — only entries that
 actually rated a given field count toward its average) and its own
 submissions table with the full set of columns for that feedback type.
+
+## Profitability — cost tracking, refunds, expenses, gross/net margin
+
+```
+Gross Profit  = Sales − Refunds − COGS − Wastage cost
+Gross Margin  = Gross Profit ÷ Sales × 100
+Net Profit    = Gross Profit − Expenses
+```
+
+**Cost price, snapshotted per batch.** `Product.costPrice` is what it
+costs to make one unit — optional, entered in the Products tab. When a
+batch is created, that cost is copied onto `Batch.costPricePerUnit` at
+that moment, the same way `OrderItem.unitPrice` already snapshots the
+selling price at checkout — so a later cost change doesn't retroactively
+rewrite what a batch someone already sold or wasted actually cost to
+make. Both are nullable: a product with no cost set simply has no cost
+data attached to its batches, rather than defaulting to zero.
+
+**COGS and wastage cost are computed, not manually entered.** COGS sums
+`batch.costPricePerUnit × quantity` across every `OrderItem` on a
+`PAID`/`REFUNDED` order in the report period; wastage cost does the same
+against `FridgeStock.quantityWasted`. Any item or wasted unit whose
+batch has no cost price is **excluded, not assumed to cost zero** — the
+`getProfitability()` response includes `itemsMissingCost` and
+`wastedUnitsMissingCost`, and the dashboard shows a visible warning when
+either is non-zero, so an incomplete number is never mistaken for a
+correct one. Set a cost price in the Products tab to fix this going
+forward — it doesn't retroactively fix past batches, since those already
+have their own (missing) snapshot.
+
+**Refunds are a manual record, not a live payment reversal.** There's no
+Razorpay refund API integration — `POST /api/admin/orders/:id/refund`
+just records that a refund happened (amount, capped at the order total)
+against an already-`PAID` order, flips its status to `REFUNDED` (an enum
+value that existed from the start but had no way to actually be set
+until now), and logs it to `AuditLog`. Process the actual refund in
+Razorpay's dashboard first, then record it here so the numbers match
+reality. A **Refund** button appears next to any `PAID` order in the
+Sales tab's order list, right where **Mark as paid** appears for
+`PENDING` ones.
+
+**Expenses are the layer between Gross and Net.** A separate `Expense`
+model — free-text description, optional category, amount, and a date
+(`incurredOn`) that's independent of when it was entered, so a rent
+payment logged late still counts toward the month it was actually for).
+Deliberately not part of the Gross Profit calculation — COGS and
+wastage are costs of the goods themselves; rent, salaries, and the like
+are a different layer, which is why the formula stops at Gross Profit
+before subtracting them.
+
+**Dashboard "Profitability" tab** (ADMIN only) — a from/to date range
+(defaults to month-to-date), a breakdown card showing the full formula
+top to bottom with the running total bolded at each stage, and an
+expense add/list/delete panel scoped to the same date range. Both
+`Sales`/`Refunds` and `Wastage cost` are period-filtered differently on
+purpose: sales and refunds are anchored to the order's `paidAt` (so a
+sale and a later refund against it land in the same report rather than
+splitting across two periods), while wastage is anchored to the batch's
+`manufacturedAt` rather than `FridgeStock.updatedAt` — the latter can be
+bumped by an unrelated later correction (see "Perishable stock" above),
+so it isn't a reliable "when did this actually get wasted" timestamp;
+a batch is already treated as one day's production everywhere else in
+this app, so its waste is treated as belonging to that same day too.
 
 ## Not in Phase 1 (next phases, on request)
 

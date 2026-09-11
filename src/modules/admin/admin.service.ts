@@ -52,6 +52,7 @@ export const createProduct = async (data: {
   weightGrams?: number;
   mrp: number;
   sellingPrice: number;
+  costPrice?: number;
   gstPercent: number;
   shelfLifeHours: number;
 }) => {
@@ -75,6 +76,7 @@ export const updateProduct = async (
     weightGrams: number;
     mrp: number;
     sellingPrice: number;
+    costPrice: number;
     gstPercent: number;
     shelfLifeHours: number;
     isActive: boolean;
@@ -136,7 +138,14 @@ export const createBatch = async (data: {
   }
 
   return prisma.batch.create({
-    data: { batchCode, productId: data.productId, manufacturedAt, expiresAt, totalQuantity: data.totalQuantity },
+    data: {
+      batchCode,
+      productId: data.productId,
+      manufacturedAt,
+      expiresAt,
+      totalQuantity: data.totalQuantity,
+      costPricePerUnit: product.costPrice, // snapshot — null if the product has no cost set yet
+    },
     include: { product: true },
   });
 };
@@ -479,6 +488,147 @@ export const markOrderPaidManually = async (
 
     return updated;
   });
+};
+
+// Records a refund for reporting purposes — this does NOT call Razorpay's
+// refund API to actually move money; process the real refund in Razorpay's
+// dashboard first, then record it here so profitability reporting reflects
+// it. Only a PAID order can be refunded (an order that was never
+// successfully paid has nothing to refund), and the amount can't exceed
+// what was actually paid.
+export const recordRefund = async (orderId: string, actorId: string, refundAmount: number) => {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw ApiError.notFound("Order not found", "ORDER_NOT_FOUND");
+
+  if (order.status !== "PAID") {
+    throw ApiError.conflict(
+      `This order is ${order.status}, not PAID — only a paid order can be refunded`,
+      "ORDER_NOT_PAID"
+    );
+  }
+  if (refundAmount > Number(order.totalAmount)) {
+    throw ApiError.conflict(
+      `Refund amount (₹${refundAmount}) can't exceed the order total (₹${order.totalAmount})`,
+      "REFUND_EXCEEDS_TOTAL"
+    );
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: { status: "REFUNDED", refundAmount, refundedAt: new Date() },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId,
+      action: "ORDER_REFUNDED",
+      entityType: "Order",
+      entityId: order.id,
+      metadata: { refundAmount, customerPhone: order.customerPhone },
+    },
+  });
+
+  return updated;
+};
+
+// ── Expenses ─────────────────────────────────────────────────
+// Month-end operating costs — the layer between Gross Profit and Net
+// Profit (see getProfitability below). Free-form: no predefined category
+// list, just whatever the admin types.
+export const createExpense = async (data: { description: string; category?: string; amount: number; incurredOn: string }) => {
+  return prisma.expense.create({
+    data: {
+      description: data.description,
+      category: data.category,
+      amount: data.amount,
+      incurredOn: new Date(data.incurredOn),
+    },
+  });
+};
+
+export const listExpenses = (filters: { from?: Date; to?: Date }) => {
+  return prisma.expense.findMany({
+    where: filters.from && filters.to ? { incurredOn: { gte: filters.from, lte: filters.to } } : undefined,
+    orderBy: { incurredOn: "desc" },
+  });
+};
+
+export const deleteExpense = async (id: string) => {
+  const existing = await prisma.expense.findUnique({ where: { id } });
+  if (!existing) throw ApiError.notFound("Expense not found", "EXPENSE_NOT_FOUND");
+  await prisma.expense.delete({ where: { id } });
+};
+
+// ── Profitability ────────────────────────────────────────────
+// Gross Profit  = Sales − Refunds − COGS − Wastage cost
+// Gross Margin% = Gross Profit ÷ Sales × 100
+// Net Profit    = Gross Profit − Expenses (the month-end layer above)
+//
+// Sales and Refunds are both anchored to the order's paidAt — a sale and
+// its later refund stay together in the same report period rather than
+// splitting across two. Wastage is anchored to the batch's manufacturedAt
+// instead of FridgeStock.updatedAt (which can be bumped by an unrelated
+// later correction) — a batch is inherently one day's production, so its
+// waste is treated as belonging to that same day.
+//
+// Any item/batch with no costPricePerUnit set is simply excluded from
+// COGS/wastage cost rather than assumed to cost zero — itemsMissingCost
+// and wastedUnitsMissingCost surface how many units that affected, so the
+// number is never silently wrong, just visibly incomplete.
+export const getProfitability = async (from: Date, to: Date) => {
+  const orders = await prisma.order.findMany({
+    where: { status: { in: ["PAID", "REFUNDED"] }, paidAt: { gte: from, lte: to } },
+    include: { items: { include: { batch: true } } },
+  });
+
+  const sales = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
+  const refunds = orders.reduce((sum, o) => sum + Number(o.refundAmount ?? 0), 0);
+
+  let cogs = 0;
+  let itemsMissingCost = 0;
+  for (const order of orders) {
+    for (const item of order.items) {
+      if (item.batch.costPricePerUnit != null) {
+        cogs += Number(item.batch.costPricePerUnit) * item.quantity;
+      } else {
+        itemsMissingCost += item.quantity;
+      }
+    }
+  }
+
+  const wastedStockRows = await prisma.fridgeStock.findMany({
+    where: { quantityWasted: { gt: 0 }, batch: { manufacturedAt: { gte: from, lte: to } } },
+    include: { batch: true },
+  });
+  let wastageCost = 0;
+  let wastedUnitsMissingCost = 0;
+  for (const row of wastedStockRows) {
+    if (row.batch.costPricePerUnit != null) {
+      wastageCost += Number(row.batch.costPricePerUnit) * row.quantityWasted;
+    } else {
+      wastedUnitsMissingCost += row.quantityWasted;
+    }
+  }
+
+  const grossProfit = sales - refunds - cogs - wastageCost;
+  const grossMarginPct = sales > 0 ? (grossProfit / sales) * 100 : null;
+
+  const expenses = await prisma.expense.findMany({ where: { incurredOn: { gte: from, lte: to } } });
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const netProfit = grossProfit - totalExpenses;
+
+  return {
+    sales,
+    refunds,
+    cogs,
+    wastageCost,
+    grossProfit,
+    grossMarginPct,
+    totalExpenses,
+    netProfit,
+    itemsMissingCost,
+    wastedUnitsMissingCost,
+  };
 };
 
 // ── Customers ────────────────────────────────────────────────
