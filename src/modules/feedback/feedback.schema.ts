@@ -1,10 +1,15 @@
 import { z } from "zod";
 
 const rating = z.number().int().min(1).max(5).optional();
+// Loose on purpose — this is a callback number a customer volunteers, not
+// a login credential. Rejecting it over minor formatting would just lose
+// a genuine phone number to a strict regex.
+const looseOptionalPhone = z.string().trim().max(20).optional();
 
 export const createFeedbackSchema = z.object({
   body: z.object({
-    name: z.string().trim().max(80).optional(),
+    name: z.string().trim().min(1, "Name is required").max(80),
+    phone: looseOptionalPhone,
     fridgeCode: z.string().min(1).optional(), // which fridge's QR this came from, if any
 
     tasteRating: rating,
@@ -26,4 +31,25 @@ export const listFeedbackQuerySchema = z.object({
   query: z.object({
     fridgeId: z.string().optional(),
   }),
+});
+
+export const createSubscriptionFeedbackSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(1, "Name is required").max(80),
+    phone: looseOptionalPhone,
+
+    satisfactionRating: rating,
+    onTimeDeliveryRating: rating,
+    goalsResultRating: rating,
+    foodQualityRating: rating,
+    quantityRating: rating,
+    packagingRating: rating,
+    recommendRating: rating,
+
+    suggestions: z.string().trim().max(1000).optional(),
+    additionalRequest: z.string().trim().max(1000).optional(),
+    favoriteMeals: z.string().trim().max(1000).optional(),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
 });

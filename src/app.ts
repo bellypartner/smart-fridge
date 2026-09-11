@@ -14,7 +14,11 @@ import sessionRoutes from "./modules/session/session.routes";
 import orderRoutes from "./modules/order/order.routes";
 import paymentRoutes from "./modules/payment/payment.routes";
 import adminRoutes from "./modules/admin/admin.routes";
-import feedbackRoutes, { adminFeedbackRouter } from "./modules/feedback/feedback.routes";
+import feedbackRoutes, {
+  adminFeedbackRouter,
+  adminSubscriptionFeedbackRouter,
+  subscriptionFeedbackRouter,
+} from "./modules/feedback/feedback.routes";
 
 export const app = express();
 
@@ -53,13 +57,20 @@ app.use("/shop", express.static(path.join(process.cwd(), "public/shop")));
 // has nothing to do with an active purchase.
 app.use("/feedback", express.static(path.join(process.cwd(), "public/feedback")));
 
+// Subscription feedback — separate audience/question set from fridge
+// feedback above (a subscription customer isn't scanning anything, they'd
+// get this link directly, e.g. over WhatsApp).
+app.use("/subscription-feedback", express.static(path.join(process.cwd(), "public/subscription-feedback")));
+
 app.use("/api/auth", authRoutes);
 app.use("/api/fridges", fridgeRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/admin/feedback", adminFeedbackRouter);
+app.use("/api/admin/subscription-feedback", adminSubscriptionFeedbackRouter);
 app.use("/api/admin", adminRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/subscription-feedback", subscriptionFeedbackRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

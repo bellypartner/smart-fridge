@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Salad Caffe — Feedback</title>
+<title>Salad Caffe — Subscription Feedback</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -33,7 +33,6 @@
   .brand { font-size: 19px; font-weight: 800; }
   .page-title { font-size: 22px; margin: 14px 0 2px; }
   .page-sub { font-size: 13px; color: var(--body); margin-bottom: 22px; }
-  .fridge-context { font-size: 12px; color: var(--secondary); font-weight: 600; margin-bottom: 18px; }
 
   .card {
     background: var(--white); border: 1px solid var(--border); border-radius: 18px;
@@ -86,23 +85,54 @@
 
 <div class="wrap" id="formScreen">
   <div class="brand-mark"><span class="dot"></span><span class="brand">Salad Caffe</span></div>
-  <h1 class="page-title">How was it?</h1>
-  <div class="page-sub">Just your name to get started — everything else is optional, answer what you'd like and skip the rest.</div>
-  <div class="fridge-context hidden" id="fridgeContext"></div>
+  <h1 class="page-title">How's your subscription going?</h1>
+  <div class="page-sub">Just your name to get started — every question below is optional, answer what you'd like and skip the rest.</div>
 
-  <label for="fbName" style="margin-top:0">Your name</label>
-  <input id="fbName" placeholder="So we know who to thank" required />
+  <label for="sfName" style="margin-top:0">Your name</label>
+  <input id="sfName" placeholder="So we know who to thank" required />
 
-  <label for="fbPhone">Phone number (optional)</label>
-  <input id="fbPhone" type="tel" placeholder="If you want us to call, leave your number" />
-  <div id="fbNameError"></div>
+  <label for="sfPhone">Phone number (optional)</label>
+  <input id="sfPhone" type="tel" placeholder="If you want us to call, leave your number" />
+  <div id="sfNameError"></div>
 
   <div class="card">
-    <h2>Food</h2>
-    <div class="section-sub">Rate whatever you'd like — none of these are required.</div>
+    <h2>Your experience</h2>
+    <div class="section-sub">The subscription itself, not any one meal.</div>
 
-    <label>Taste</label>
-    <div class="stars" data-field="tasteRating">
+    <label>How satisfied are you overall?</label>
+    <div class="stars" data-field="satisfactionRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label>On-time delivery</label>
+    <div class="stars" data-field="onTimeDeliveryRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+
+    <label>Results toward your goal so far</label>
+    <div class="stars" data-field="goalsResultRating">
+      <button type="button" class="star-btn" data-value="1">★</button>
+      <button type="button" class="star-btn" data-value="2">★</button>
+      <button type="button" class="star-btn" data-value="3">★</button>
+      <button type="button" class="star-btn" data-value="4">★</button>
+      <button type="button" class="star-btn" data-value="5">★</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The food</h2>
+    <div class="section-sub">Across your deliveries so far, generally speaking.</div>
+
+    <label>Food quality</label>
+    <div class="stars" data-field="foodQualityRating">
       <button type="button" class="star-btn" data-value="1">★</button>
       <button type="button" class="star-btn" data-value="2">★</button>
       <button type="button" class="star-btn" data-value="3">★</button>
@@ -119,8 +149,8 @@
       <button type="button" class="star-btn" data-value="5">★</button>
     </div>
 
-    <label>Quality</label>
-    <div class="stars" data-field="qualityRating">
+    <label>Packaging</label>
+    <div class="stars" data-field="packagingRating">
       <button type="button" class="star-btn" data-value="1">★</button>
       <button type="button" class="star-btn" data-value="2">★</button>
       <button type="button" class="star-btn" data-value="3">★</button>
@@ -128,7 +158,14 @@
       <button type="button" class="star-btn" data-value="5">★</button>
     </div>
 
-    <label>How likely are you to recommend us to someone else?</label>
+    <label for="sfFavoriteMeals">Favorite meals so far</label>
+    <textarea id="sfFavoriteMeals" rows="2" placeholder="Anything you'd want to see more often"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>A bit more</h2>
+
+    <label>How likely are you to recommend us to a friend?</label>
     <div class="stars" data-field="recommendRating">
       <button type="button" class="star-btn" data-value="1">★</button>
       <button type="button" class="star-btn" data-value="2">★</button>
@@ -137,28 +174,14 @@
       <button type="button" class="star-btn" data-value="5">★</button>
     </div>
 
-    <label for="fbFoodSuggestion">Suggestions about the food</label>
-    <textarea id="fbFoodSuggestion" rows="3" placeholder="Anything you'd like to see more or less of"></textarea>
+    <label for="sfSuggestions">Suggestions</label>
+    <textarea id="sfSuggestions" rows="3" placeholder="Anything you'd like us to do differently"></textarea>
+
+    <label for="sfAdditionalRequest">Additional requests</label>
+    <textarea id="sfAdditionalRequest" rows="3" placeholder="Anything specific you'd like — a meal type, a delivery time change, etc."></textarea>
   </div>
 
-  <div class="card">
-    <h2>Service</h2>
-    <div class="section-sub">Separate from the food — staff, checkout, the fridge itself, anything like that.</div>
-
-    <label>Service rating</label>
-    <div class="stars" data-field="serviceRating">
-      <button type="button" class="star-btn" data-value="1">★</button>
-      <button type="button" class="star-btn" data-value="2">★</button>
-      <button type="button" class="star-btn" data-value="3">★</button>
-      <button type="button" class="star-btn" data-value="4">★</button>
-      <button type="button" class="star-btn" data-value="5">★</button>
-    </div>
-
-    <label for="fbServiceComment">Comments about the service</label>
-    <textarea id="fbServiceComment" rows="3" placeholder="Anything about the experience itself"></textarea>
-  </div>
-
-  <div id="fbError"></div>
+  <div id="sfError"></div>
   <button class="submit-btn" id="submitBtn" onclick="submitFeedback()">Submit feedback</button>
 </div>
 
@@ -178,7 +201,7 @@ document.querySelectorAll('.stars').forEach((group) => {
     btn.addEventListener('click', () => {
       const value = parseInt(btn.dataset.value, 10);
       // Tapping the currently-selected star again clears the rating —
-      // matches "nothing is mandatory," including un-answering by mistake.
+      // consistent with everything here being optional.
       ratings[field] = ratings[field] === value ? null : value;
       renderStars(group, ratings[field]);
     });
@@ -192,33 +215,17 @@ function renderStars(group, value) {
   });
 }
 
-// Fridge context from the QR link, if this one was fridge-scoped
-const params = new URLSearchParams(location.search);
-const fridgeCode = params.get('fridge');
-if (fridgeCode) {
-  fetch('/api/fridges/' + encodeURIComponent(fridgeCode))
-    .then((res) => res.ok ? res.json() : null)
-    .then((fridge) => {
-      if (fridge) {
-        const el = document.getElementById('fridgeContext');
-        el.textContent = 'Feedback for ' + fridge.name;
-        el.classList.remove('hidden');
-      }
-    })
-    .catch(() => {});
-}
-
 function submitFeedback() {
   const btn = document.getElementById('submitBtn');
-  const errEl = document.getElementById('fbError');
-  const nameErrEl = document.getElementById('fbNameError');
+  const errEl = document.getElementById('sfError');
+  const nameErrEl = document.getElementById('sfNameError');
   errEl.innerHTML = '';
   nameErrEl.innerHTML = '';
 
-  const name = document.getElementById('fbName').value.trim();
+  const name = document.getElementById('sfName').value.trim();
   if (!name) {
     nameErrEl.innerHTML = '<div class="error-msg">Please enter your name to continue.</div>';
-    document.getElementById('fbName').focus();
+    document.getElementById('sfName').focus();
     return;
   }
 
@@ -227,18 +234,20 @@ function submitFeedback() {
 
   const body = {
     name: name,
-    phone: document.getElementById('fbPhone').value.trim() || undefined,
-    fridgeCode: fridgeCode || undefined,
-    tasteRating: ratings.tasteRating || undefined,
+    phone: document.getElementById('sfPhone').value.trim() || undefined,
+    satisfactionRating: ratings.satisfactionRating || undefined,
+    onTimeDeliveryRating: ratings.onTimeDeliveryRating || undefined,
+    goalsResultRating: ratings.goalsResultRating || undefined,
+    foodQualityRating: ratings.foodQualityRating || undefined,
     quantityRating: ratings.quantityRating || undefined,
-    qualityRating: ratings.qualityRating || undefined,
+    packagingRating: ratings.packagingRating || undefined,
     recommendRating: ratings.recommendRating || undefined,
-    foodSuggestion: document.getElementById('fbFoodSuggestion').value.trim() || undefined,
-    serviceRating: ratings.serviceRating || undefined,
-    serviceComment: document.getElementById('fbServiceComment').value.trim() || undefined,
+    suggestions: document.getElementById('sfSuggestions').value.trim() || undefined,
+    additionalRequest: document.getElementById('sfAdditionalRequest').value.trim() || undefined,
+    favoriteMeals: document.getElementById('sfFavoriteMeals').value.trim() || undefined,
   };
 
-  fetch('/api/feedback', {
+  fetch('/api/subscription-feedback', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

@@ -1,7 +1,8 @@
 import { prisma } from "../../config/prisma";
 
 export const createFeedback = async (data: {
-  name?: string;
+  name: string;
+  phone?: string;
   fridgeCode?: string;
   tasteRating?: number;
   quantityRating?: number;
@@ -23,7 +24,8 @@ export const createFeedback = async (data: {
 
   return prisma.feedback.create({
     data: {
-      name: data.name || undefined,
+      name: data.name,
+      phone: data.phone || undefined,
       fridgeId,
       tasteRating: data.tasteRating,
       quantityRating: data.quantityRating,
@@ -73,5 +75,78 @@ export const getFeedbackStats = async () => {
     qualityCount: qualityRatings.length,
     recommendCount: recommendRatings.length,
     serviceCount: serviceRatings.length,
+  };
+};
+
+// ── Subscription feedback — separate model, separate questions ─────
+export const createSubscriptionFeedback = async (data: {
+  name: string;
+  phone?: string;
+  satisfactionRating?: number;
+  onTimeDeliveryRating?: number;
+  goalsResultRating?: number;
+  foodQualityRating?: number;
+  quantityRating?: number;
+  packagingRating?: number;
+  recommendRating?: number;
+  suggestions?: string;
+  additionalRequest?: string;
+  favoriteMeals?: string;
+}) => {
+  return prisma.subscriptionFeedback.create({
+    data: {
+      name: data.name,
+      phone: data.phone || undefined,
+      satisfactionRating: data.satisfactionRating,
+      onTimeDeliveryRating: data.onTimeDeliveryRating,
+      goalsResultRating: data.goalsResultRating,
+      foodQualityRating: data.foodQualityRating,
+      quantityRating: data.quantityRating,
+      packagingRating: data.packagingRating,
+      recommendRating: data.recommendRating,
+      suggestions: data.suggestions || undefined,
+      additionalRequest: data.additionalRequest || undefined,
+      favoriteMeals: data.favoriteMeals || undefined,
+    },
+  });
+};
+
+export const listSubscriptionFeedback = () => {
+  return prisma.subscriptionFeedback.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 300,
+  });
+};
+
+export const getSubscriptionFeedbackStats = async () => {
+  const all = await prisma.subscriptionFeedback.findMany();
+
+  const avg = (values: number[]) =>
+    values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
+
+  const satisfactionRatings = all.map((f) => f.satisfactionRating).filter((v): v is number => v != null);
+  const onTimeDeliveryRatings = all.map((f) => f.onTimeDeliveryRating).filter((v): v is number => v != null);
+  const goalsResultRatings = all.map((f) => f.goalsResultRating).filter((v): v is number => v != null);
+  const foodQualityRatings = all.map((f) => f.foodQualityRating).filter((v): v is number => v != null);
+  const quantityRatings = all.map((f) => f.quantityRating).filter((v): v is number => v != null);
+  const packagingRatings = all.map((f) => f.packagingRating).filter((v): v is number => v != null);
+  const recommendRatings = all.map((f) => f.recommendRating).filter((v): v is number => v != null);
+
+  return {
+    totalSubmissions: all.length,
+    avgSatisfaction: avg(satisfactionRatings),
+    avgOnTimeDelivery: avg(onTimeDeliveryRatings),
+    avgGoalsResult: avg(goalsResultRatings),
+    avgFoodQuality: avg(foodQualityRatings),
+    avgQuantity: avg(quantityRatings),
+    avgPackaging: avg(packagingRatings),
+    avgRecommend: avg(recommendRatings),
+    satisfactionCount: satisfactionRatings.length,
+    onTimeDeliveryCount: onTimeDeliveryRatings.length,
+    goalsResultCount: goalsResultRatings.length,
+    foodQualityCount: foodQualityRatings.length,
+    quantityCount: quantityRatings.length,
+    packagingCount: packagingRatings.length,
+    recommendCount: recommendRatings.length,
   };
 };

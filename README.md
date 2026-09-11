@@ -588,19 +588,30 @@ captured.
 
 ## Customer feedback
 
-A second, separate QR flow from the shopping one — served at
-**`/feedback`**, fully public, no auth, nothing required to submit.
+Two separate public QR/link flows, entirely distinct from the shopping
+one — fridge feedback (from a physical location) and subscription
+feedback (from an ongoing service relationship, not tied to any fridge).
+Both share the same design principle: **name is the one required
+field, everything else is optional.**
 
-- **Public form** — an optional name field, then two clearly separated
-  sections: **Food** (star ratings for taste, quantity, quality, and
-  "how likely to recommend us," plus a short suggestion box) and
-  **Service** (its own rating and comment, deliberately kept apart from
-  the food ratings — a bad checkout experience shouldn't drag down a
-  good meal's rating or vice versa). Every field is independently
-  optional — the submit button is never disabled waiting on required
-  input, and tapping an already-selected star clears it. Rate-limited
-  (5/minute) purely to blunt a spam flood, not to constrain a genuine
-  customer.
+### Fridge feedback — `/feedback`
+
+- **Public form** — a required name field, an optional phone number
+  ("if you want us to call, leave your number"), then two clearly
+  separated sections: **Food** (star ratings for taste, quantity,
+  quality, and "how likely to recommend us," plus a short suggestion
+  box) and **Service** (its own rating and comment, deliberately kept
+  apart from the food ratings — a bad checkout experience shouldn't drag
+  down a good meal's rating or vice versa). Every field past name is
+  independently optional, and tapping an already-selected star clears
+  it. Rate-limited (5/minute) purely to blunt a spam flood, not to
+  constrain a genuine customer. Name is enforced client-side (so a
+  customer sees the problem immediately, right next to the field) and
+  server-side (so the requirement can't be bypassed by skipping the
+  page's JS) — but kept nullable at the *database* level rather than a
+  hard `NOT NULL` constraint, since that column already existed as
+  optional before this requirement was added, and a schema-level
+  constraint change risks failing against any rows that predate it.
 - **Fridge context, optionally.** A feedback QR can be scoped to one
   fridge (`/feedback?fridge=<code>`) or left generic. Fridge-scoped ones
   show "Feedback for <fridge name>" and tag the submission with that
@@ -610,19 +621,40 @@ A second, separate QR flow from the shopping one — served at
   different destination URL) alongside its regular shop QR; the Feedback
   tab also has a "Print a general feedback QR" option for a single
   universal one if you'd rather not scope it per fridge.
-- **Dashboard "Feedback" tab** (ADMIN only) — stat cards for total
-  submissions and the average of each rating category (shown with the
-  count behind it, e.g. `4.2 ★ (12)`, so a small sample never looks as
-  confident as a large one), plus a table of every submission with food
-  and service info in clearly separated columns, filterable by fridge.
-  Averages only count entries that actually rated that specific field —
-  a mostly-blank submission doesn't drag one category's average toward
-  zero just because it answered a different one.
 - `GET /api/admin/feedback/stats` and `GET /api/admin/feedback` (both
-  ADMIN only) back the tab; `POST /api/feedback` is the public
+  ADMIN only) back the dashboard; `POST /api/feedback` is the public
   submission endpoint. An unresolvable `fridgeCode` on submission never
   fails the request — it just means no fridge gets attached, since a bad
   QR code shouldn't be able to silently eat someone's feedback.
+
+### Subscription feedback — `/subscription-feedback`
+
+A **separate model and question set** from fridge feedback — a
+subscription customer isn't scanning anything physical (you'd send this
+link directly, e.g. over WhatsApp after a delivery), and the questions
+don't overlap enough to share a table without it turning into a pile of
+nullable fields that only half apply to either side.
+
+- **Public form** — required name, optional phone, then three grouped
+  sections: **Your experience** (overall satisfaction, on-time delivery,
+  results toward their goal), **The food** (quality, quantity,
+  packaging, plus a free-text "favorite meals so far"), and **A bit
+  more** (how likely to recommend to a friend, suggestions, additional
+  requests). Same validation approach as fridge feedback — name required
+  client- and server-side, everything else optional.
+- `GET /api/admin/subscription-feedback/stats` and
+  `GET /api/admin/subscription-feedback` (ADMIN only);
+  `POST /api/subscription-feedback` is the public submission endpoint.
+
+### Dashboard
+
+Both live under the same **"Feedback"** nav tab, switched with a toggle
+at the top (**Fridge feedback** / **Subscription feedback**) rather than
+two separate sidebar entries — each shows its own stat cards (averages
+shown with the sample count behind them, e.g. `4.2 ★ (12)`, so a small
+sample never looks as confident as a large one — only entries that
+actually rated a given field count toward its average) and its own
+submissions table with the full set of columns for that feedback type.
 
 ## Not in Phase 1 (next phases, on request)
 

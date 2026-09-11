@@ -14,3 +14,16 @@ export const listFeedback = async (req: Request, res: Response) => {
 export const getFeedbackStats = async (_req: Request, res: Response) => {
   res.status(200).json(await feedbackService.getFeedbackStats());
 };
+
+export const createSubscriptionFeedback = async (req: Request, res: Response) => {
+  const feedback = await feedbackService.createSubscriptionFeedback(req.body);
+  res.status(201).json({ id: feedback.id });
+};
+
+export const listSubscriptionFeedback = async (_req: Request, res: Response) => {
+  res.status(200).json(await feedbackService.listSubscriptionFeedback());
+};
+
+export const getSubscriptionFeedbackStats = async (_req: Request, res: Response) => {
+  res.status(200).json(await feedbackService.getSubscriptionFeedbackStats());
+};

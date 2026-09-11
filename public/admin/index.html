@@ -590,31 +590,67 @@
     <!-- FEEDBACK -->
     <div class="tab-panel hidden" id="tab-feedback">
       <h1>Feedback</h1>
-      <div class="page-sub">From the feedback QR — anonymous by default, nothing was required to submit.
-        <button class="qr-btn" style="margin-left:8px" onclick="openGenericFeedbackQr()">Print a general feedback QR</button>
-        — or use each fridge's own "Feedback QR" button in the Fridges tab for location-specific ones.
+      <div class="page-sub">Two separate audiences, two separate question sets — toggle between them below.</div>
+
+      <div style="display:flex;gap:8px;margin-bottom:22px">
+        <button class="qr-btn" id="feedbackToggleFridge" onclick="switchFeedbackView('fridge')" style="background:var(--primary);color:var(--white);border-color:var(--primary)">Fridge feedback</button>
+        <button class="qr-btn" id="feedbackToggleSubscription" onclick="switchFeedbackView('subscription')">Subscription feedback</button>
       </div>
 
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total submissions</div><div class="stat-value" id="fbStatTotal">0</div></div>
-        <div class="stat-card"><div class="stat-label">Avg taste</div><div class="stat-value accent" id="fbStatTaste">—</div></div>
-        <div class="stat-card"><div class="stat-label">Avg quantity</div><div class="stat-value accent" id="fbStatQuantity">—</div></div>
-        <div class="stat-card"><div class="stat-label">Avg quality</div><div class="stat-value accent" id="fbStatQuality">—</div></div>
-        <div class="stat-card"><div class="stat-label">Avg recommend</div><div class="stat-value accent" id="fbStatRecommend">—</div></div>
-        <div class="stat-card"><div class="stat-label">Avg service</div><div class="stat-value accent" id="fbStatService">—</div></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header-row">
-          <h3>All submissions</h3>
-          <select id="feedbackFridgeFilter" class="filter-select" onchange="loadFeedback()">
-            <option value="">All fridges</option>
-          </select>
+      <!-- FRIDGE FEEDBACK VIEW -->
+      <div id="feedbackFridgeView">
+        <div class="page-sub">From the feedback QR — name is required, everything else is optional.
+          <button class="qr-btn" style="margin-left:8px" onclick="openGenericFeedbackQr()">Print a general feedback QR</button>
+          — or use each fridge's own "Feedback QR" button in the Fridges tab for location-specific ones.
         </div>
-        <table>
-          <thead><tr><th>Date</th><th>Name</th><th>Fridge</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
-          <tbody id="feedbackTable"><tr class="empty-row"><td colspan="7">No feedback yet</td></tr></tbody>
-        </table>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Total submissions</div><div class="stat-value" id="fbStatTotal">0</div></div>
+          <div class="stat-card"><div class="stat-label">Avg taste</div><div class="stat-value accent" id="fbStatTaste">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg quantity</div><div class="stat-value accent" id="fbStatQuantity">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg quality</div><div class="stat-value accent" id="fbStatQuality">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg recommend</div><div class="stat-value accent" id="fbStatRecommend">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg service</div><div class="stat-value accent" id="fbStatService">—</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header-row">
+            <h3>All submissions</h3>
+            <select id="feedbackFridgeFilter" class="filter-select" onchange="loadFeedback()">
+              <option value="">All fridges</option>
+            </select>
+          </div>
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Fridge</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
+            <tbody id="feedbackTable"><tr class="empty-row"><td colspan="8">No feedback yet</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SUBSCRIPTION FEEDBACK VIEW -->
+      <div id="feedbackSubscriptionView" class="hidden">
+        <div class="page-sub">From the subscription feedback link — name is required, everything else is optional.
+          <button class="qr-btn" style="margin-left:8px" onclick="openSubscriptionFeedbackQr()">Print a subscription feedback QR</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Total submissions</div><div class="stat-value" id="sfStatTotal">0</div></div>
+          <div class="stat-card"><div class="stat-label">Avg satisfaction</div><div class="stat-value accent" id="sfStatSatisfaction">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg on-time delivery</div><div class="stat-value accent" id="sfStatOnTime">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg goal results</div><div class="stat-value accent" id="sfStatGoals">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg food quality</div><div class="stat-value accent" id="sfStatFoodQuality">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg quantity</div><div class="stat-value accent" id="sfStatQuantity">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg packaging</div><div class="stat-value accent" id="sfStatPackaging">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg recommend</div><div class="stat-value accent" id="sfStatRecommend">—</div></div>
+        </div>
+
+        <div class="card">
+          <h3>All submissions</h3>
+          <table>
+            <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Ratings</th><th>Favorite meals</th><th>Suggestions</th><th>Additional requests</th></tr></thead>
+            <tbody id="subscriptionFeedbackTable"><tr class="empty-row"><td colspan="7">No feedback yet</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1712,11 +1748,72 @@ function loadFeedback() {
       if (f.recommendRating != null) foodParts.push('Recommend ' + f.recommendRating);
       return '<tr><td>' + new Date(f.createdAt).toLocaleDateString() + '</td>' +
         '<td>' + (f.name || '—') + '</td>' +
+        '<td>' + (f.phone || '—') + '</td>' +
         '<td>' + (f.fridge ? f.fridge.name : '—') + '</td>' +
         '<td>' + (foodParts.length ? foodParts.join(', ') : '—') + '</td>' +
         '<td>' + (f.foodSuggestion || '—') + '</td>' +
         '<td>' + (f.serviceRating != null ? f.serviceRating + ' ★' : '—') + '</td>' +
         '<td>' + (f.serviceComment || '—') + '</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="8">No feedback yet</td></tr>';
+  }).catch(() => {});
+}
+
+// Toggles between the two feedback audiences within the same tab —
+// simpler than a separate top-level nav item for each, since the sidebar
+// already has quite a few entries.
+function switchFeedbackView(view) {
+  document.getElementById('feedbackFridgeView').classList.toggle('hidden', view !== 'fridge');
+  document.getElementById('feedbackSubscriptionView').classList.toggle('hidden', view !== 'subscription');
+  document.getElementById('feedbackToggleFridge').style.background = view === 'fridge' ? 'var(--primary)' : '';
+  document.getElementById('feedbackToggleFridge').style.color = view === 'fridge' ? 'var(--white)' : '';
+  document.getElementById('feedbackToggleFridge').style.borderColor = view === 'fridge' ? 'var(--primary)' : '';
+  document.getElementById('feedbackToggleSubscription').style.background = view === 'subscription' ? 'var(--primary)' : '';
+  document.getElementById('feedbackToggleSubscription').style.color = view === 'subscription' ? 'var(--white)' : '';
+  document.getElementById('feedbackToggleSubscription').style.borderColor = view === 'subscription' ? 'var(--primary)' : '';
+  if (view === 'subscription') loadSubscriptionFeedback();
+}
+
+function openSubscriptionFeedbackQr() {
+  const url = location.origin + '/subscription-feedback';
+  qrState.text = url;
+  qrState.label = 'Subscription Feedback';
+  qrState.sub = url;
+  qrState.fridgeCode = 'SUBSCRIPTION-FEEDBACK';
+  qrState.isBatch = false;
+  qrState.batch = null;
+  renderQrModal('Subscription Feedback QR', url, false);
+}
+
+function loadSubscriptionFeedback() {
+  api('/admin/subscription-feedback/stats').then((stats) => {
+    document.getElementById('sfStatTotal').textContent = stats.totalSubmissions;
+    document.getElementById('sfStatSatisfaction').textContent = formatAvg(stats.avgSatisfaction, stats.satisfactionCount);
+    document.getElementById('sfStatOnTime').textContent = formatAvg(stats.avgOnTimeDelivery, stats.onTimeDeliveryCount);
+    document.getElementById('sfStatGoals').textContent = formatAvg(stats.avgGoalsResult, stats.goalsResultCount);
+    document.getElementById('sfStatFoodQuality').textContent = formatAvg(stats.avgFoodQuality, stats.foodQualityCount);
+    document.getElementById('sfStatQuantity').textContent = formatAvg(stats.avgQuantity, stats.quantityCount);
+    document.getElementById('sfStatPackaging').textContent = formatAvg(stats.avgPackaging, stats.packagingCount);
+    document.getElementById('sfStatRecommend').textContent = formatAvg(stats.avgRecommend, stats.recommendCount);
+  }).catch(() => {});
+
+  api('/admin/subscription-feedback').then((entries) => {
+    const tbody = document.getElementById('subscriptionFeedbackTable');
+    tbody.innerHTML = entries.length ? entries.map((f) => {
+      const parts = [];
+      if (f.satisfactionRating != null) parts.push('Satisfaction ' + f.satisfactionRating);
+      if (f.onTimeDeliveryRating != null) parts.push('On-time ' + f.onTimeDeliveryRating);
+      if (f.goalsResultRating != null) parts.push('Goals ' + f.goalsResultRating);
+      if (f.foodQualityRating != null) parts.push('Quality ' + f.foodQualityRating);
+      if (f.quantityRating != null) parts.push('Qty ' + f.quantityRating);
+      if (f.packagingRating != null) parts.push('Packaging ' + f.packagingRating);
+      if (f.recommendRating != null) parts.push('Recommend ' + f.recommendRating);
+      return '<tr><td>' + new Date(f.createdAt).toLocaleDateString() + '</td>' +
+        '<td>' + f.name + '</td>' +
+        '<td>' + (f.phone || '—') + '</td>' +
+        '<td>' + (parts.length ? parts.join(', ') : '—') + '</td>' +
+        '<td>' + (f.favoriteMeals || '—') + '</td>' +
+        '<td>' + (f.suggestions || '—') + '</td>' +
+        '<td>' + (f.additionalRequest || '—') + '</td></tr>';
     }).join('') : '<tr class="empty-row"><td colspan="7">No feedback yet</td></tr>';
   }).catch(() => {});
 }

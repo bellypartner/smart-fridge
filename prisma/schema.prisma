@@ -298,7 +298,13 @@ model AuditLog {
 
 model Feedback {
   id              String   @id @default(cuid())
-  name            String?  // optional — "anyone" can submit, name isn't required
+  // Name is required going forward — enforced in feedback.schema.ts, not
+  // here at the DB level, since making an already-nullable column NOT
+  // NULL is risky against rows that may already exist from before this
+  // requirement was added. New submissions always have one; old rows
+  // (if any) may not.
+  name            String?
+  phone           String?  // optional — "if you want us to call, leave your number"
   fridgeId        String?  // which fridge's QR this came from, if the QR was fridge-scoped
   fridge          Fridge?  @relation(fields: [fridgeId], references: [id])
 
@@ -317,5 +323,31 @@ model Feedback {
   createdAt       DateTime @default(now())
 
   @@index([fridgeId])
+  @@index([createdAt])
+}
+
+// Separate from fridge Feedback above — a subscription customer isn't
+// scanning a physical QR at a location, and the question set is entirely
+// different (delivery, results, packaging), so a shared polymorphic table
+// would mostly be nullable fields that don't apply to either side.
+model SubscriptionFeedback {
+  id                   String   @id @default(cuid())
+  name                 String   // mandatory — a real table, not backward-compat nullable, since this is a brand new model with no prior rows to worry about
+  phone                String?  // optional — "if you want us to call, leave your number"
+
+  satisfactionRating   Int?     // 1-5 — overall, "how satisfied with the subscription"
+  onTimeDeliveryRating Int?
+  goalsResultRating    Int?     // progress toward whatever goal they subscribed for
+  foodQualityRating    Int?
+  quantityRating       Int?
+  packagingRating      Int?
+  recommendRating      Int?     // "how much would you recommend us to a friend"
+
+  suggestions          String?
+  additionalRequest    String?
+  favoriteMeals        String?
+
+  createdAt            DateTime @default(now())
+
   @@index([createdAt])
 }
