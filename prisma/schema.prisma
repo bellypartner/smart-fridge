@@ -315,6 +315,7 @@ model Feedback {
   source          String?  // "fridge" | "swiggy_zomato" — same question set, different audience/channel, so one table with a discriminator rather than duplicating every rating field a second time. Null means "fridge" (rows from before this field existed).
   fridgeId        String?  // which fridge's QR this came from, if the QR was fridge-scoped (never set for swiggy_zomato — that channel has no fridge)
   fridge          Fridge?  @relation(fields: [fridgeId], references: [id])
+  location        String?  // free-text kitchen/location label for swiggy_zomato QRs (no Fridge to attach to, but still useful to know which kitchen an order came from) — a plain string, not tied to any existing entity
 
   // Food ratings, 1-5, all independently optional
   tasteRating     Int?
@@ -343,6 +344,7 @@ model SubscriptionFeedback {
   id                   String   @id @default(cuid())
   name                 String   // mandatory — a real table, not backward-compat nullable, since this is a brand new model with no prior rows to worry about
   phone                String?  // optional — "if you want us to call, leave your number"
+  location             String?  // free-text kitchen/location label, for location-scoped QR links — a plain string, not tied to any existing entity
 
   satisfactionRating   Int?     // 1-5 — overall, "how satisfied with the subscription"
   onTimeDeliveryRating Int?

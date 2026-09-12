@@ -34,6 +34,7 @@ export const createDeliveryFeedbackSchema = z.object({
   body: z.object({
     name: z.string().trim().min(1, "Name is required").max(80),
     phone: looseRequiredPhone,
+    location: z.string().trim().max(120).optional(), // which kitchen/location this QR was scoped to
 
     tasteRating: rating,
     quantityRating: rating,
@@ -61,6 +62,7 @@ export const createSubscriptionFeedbackSchema = z.object({
   body: z.object({
     name: z.string().trim().min(1, "Name is required").max(80),
     phone: looseOptionalPhone,
+    location: z.string().trim().max(120).optional(),
 
     satisfactionRating: rating,
     onTimeDeliveryRating: rating,

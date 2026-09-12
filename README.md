@@ -795,10 +795,10 @@ reduces `FridgeStock` exactly the way a real sale would
 (`quantityAvailable` down, `quantitySold` up), and can't exceed what's
 actually available. `getProfitability()` folds manual-sale revenue and
 COGS into the same `sales`/`cogs` totals as app orders — the response
-(and the Profitability tab's breakdown card) also splits `Sales` into
-`appSales` and `manualSalesTotal` as sub-lines, so it's visible how much
-of a period's revenue came from each channel without needing a
-separate report.
+(and the Profitability tab's breakdown card) splits `Sales` into three
+sub-lines — `appSales`, `manualQrSalesTotal`, and `vendingSalesTotal` —
+so it's visible exactly how much of a period's revenue came from each
+individual channel, not lumped into one "manual" figure.
 
 **Vending machine sales share this same model**, via a `channel` field
 (`"bank_qr"` default, or `"vending_machine"`) rather than a second
@@ -806,6 +806,54 @@ table — the reconciliation problem and the fix are identical, just a
 different real-world source. The Stock tab has a **Vending sale**
 button right next to **Manual sale**; both call the same endpoint with
 a different `channel` in the body.
+
+**Corrections.** There was no way to fix a mistyped quantity after
+recording one of these — the Profitability tab's "Manual & vending
+sales in this period" table now has **Edit** and **Delete** for exactly
+that. Edit (`PATCH /api/admin/manual-sales/:id`) applies only the
+*difference* between the old and new quantity to `FridgeStock` — not
+the full new quantity again — and keeps the originally-snapshotted unit
+price, since this is a quantity correction, not a re-sale at today's
+price. Delete (`DELETE /api/admin/manual-sales/:id`) fully reverses the
+sale's stock effect (units go back to `quantityAvailable`, out of
+`quantitySold`) before removing the record — for when one was recorded
+in error entirely, not just with the wrong number.
+
+## Location-scoped feedback QRs (Swiggy/Zomato and subscription)
+
+Fridge feedback has always been optionally scoped to a fridge via
+`?fridge=<code>` in the link. Swiggy/Zomato and subscription feedback
+have no fridge to attach to, but can still be scoped to a **kitchen or
+location** the same way, via a free-text `location` field on both
+`Feedback` and `SubscriptionFeedback` — not tied to any existing
+entity (there's no separate "Location" model), just a plain string
+tag, since a delivery order or a subscription customer was never
+picked up from a specific physical fridge unit.
+
+Generating one: the **"Print a delivery feedback QR"** button (Feedback
+tab → Swiggy/Zomato view) and **"Print a subscription feedback QR"**
+button (Feedback tab → Subscription view) both prompt for an optional
+location name before building the link (`/feedback-delivery?location=Trivandrum`,
+`/subscription-feedback?location=Kochi`) — leave it blank for a
+generic, unscoped QR. The public form shows "Feedback for <location>"
+near the top when the link carried one, the same convention fridge
+feedback already used.
+
+## Expense categories — pick existing or add new, sub-totaled in the statement
+
+The Profitability tab's expense category field was free text before —
+now it's a dropdown of every category ever used
+(`GET /api/admin/expenses/categories`, distinct values from past
+`Expense` rows) plus a **"+ Add new category…"** option that reveals a
+text input when selected. This exists specifically to stop "Rent" and
+"rent" from silently becoming two different categories in the
+breakdown just from inconsistent typing.
+
+The Profitability breakdown card's "− Expenses (this period)" line now
+has its own sub-lines underneath, one per category with that category's
+total for the period (uncategorized expenses group under
+"Uncategorized" rather than being dropped) — so the statement shows
+what expenses actually consist of, not one opaque lump sum.
 
 ## Not in Phase 1 (next phases, on request)
 

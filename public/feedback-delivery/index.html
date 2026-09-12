@@ -33,6 +33,7 @@
   .brand { font-size: 19px; font-weight: 800; }
   .page-title { font-size: 22px; margin: 14px 0 2px; }
   .page-sub { font-size: 13px; color: var(--body); margin-bottom: 22px; }
+  .fridge-context { font-size: 12px; color: var(--secondary); font-weight: 600; margin-bottom: 18px; }
 
   .card {
     background: var(--white); border: 1px solid var(--border); border-radius: 18px;
@@ -87,6 +88,7 @@
   <div class="brand-mark"><span class="dot"></span><span class="brand">Salad Caffe</span></div>
   <h1 class="page-title">How was your order?</h1>
   <div class="page-sub">For orders placed via Swiggy or Zomato. Name and phone number are needed to continue — everything else is optional, answer what you'd like and skip the rest.</div>
+  <div class="fridge-context hidden" id="locationContext"></div>
 
   <label for="fbName" style="margin-top:0">Your name</label>
   <input id="fbName" placeholder="So we know who to thank" required />
@@ -189,6 +191,14 @@ function renderStars(group, value) {
   });
 }
 
+// Location context from the QR link, if this one was location-scoped
+const qrLocation = new URLSearchParams(location.search).get('location');
+if (qrLocation) {
+  const el = document.getElementById('locationContext');
+  el.textContent = 'Feedback for ' + qrLocation;
+  el.classList.remove('hidden');
+}
+
 function submitFeedback() {
   const btn = document.getElementById('submitBtn');
   const errEl = document.getElementById('fbError');
@@ -215,6 +225,7 @@ function submitFeedback() {
   const body = {
     name: name,
     phone: phone,
+    location: qrLocation || undefined,
     tasteRating: ratings.tasteRating || undefined,
     quantityRating: ratings.quantityRating || undefined,
     qualityRating: ratings.qualityRating || undefined,

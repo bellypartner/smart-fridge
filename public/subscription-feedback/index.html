@@ -33,6 +33,7 @@
   .brand { font-size: 19px; font-weight: 800; }
   .page-title { font-size: 22px; margin: 14px 0 2px; }
   .page-sub { font-size: 13px; color: var(--body); margin-bottom: 22px; }
+  .fridge-context { font-size: 12px; color: var(--secondary); font-weight: 600; margin-bottom: 18px; }
 
   .card {
     background: var(--white); border: 1px solid var(--border); border-radius: 18px;
@@ -87,6 +88,7 @@
   <div class="brand-mark"><span class="dot"></span><span class="brand">Salad Caffe</span></div>
   <h1 class="page-title">How's your subscription going?</h1>
   <div class="page-sub">Just your name to get started — every question below is optional, answer what you'd like and skip the rest.</div>
+  <div class="fridge-context hidden" id="locationContext"></div>
 
   <label for="sfName" style="margin-top:0">Your name</label>
   <input id="sfName" placeholder="So we know who to thank" required />
@@ -215,6 +217,14 @@ function renderStars(group, value) {
   });
 }
 
+// Location context from the QR link, if this one was location-scoped
+const qrLocation = new URLSearchParams(location.search).get('location');
+if (qrLocation) {
+  const el = document.getElementById('locationContext');
+  el.textContent = 'Feedback for ' + qrLocation;
+  el.classList.remove('hidden');
+}
+
 function submitFeedback() {
   const btn = document.getElementById('submitBtn');
   const errEl = document.getElementById('sfError');
@@ -235,6 +245,7 @@ function submitFeedback() {
   const body = {
     name: name,
     phone: document.getElementById('sfPhone').value.trim() || undefined,
+    location: qrLocation || undefined,
     satisfactionRating: ratings.satisfactionRating || undefined,
     onTimeDeliveryRating: ratings.onTimeDeliveryRating || undefined,
     goalsResultRating: ratings.goalsResultRating || undefined,

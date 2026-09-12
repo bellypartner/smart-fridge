@@ -22,6 +22,7 @@ import {
   updateBatchStatusSchema,
   updateCategorySchema,
   updateFridgeSchema,
+  updateManualSaleSchema,
   updateProductSchema,
   updateStockSchema,
 } from "./admin.schema";
@@ -261,8 +262,36 @@ router.get(
   requireRole("ADMIN"),
   validate(listManualSalesQuerySchema),
   asyncHandler(async (req, res) => {
-    const { fridgeId, channel } = req.query as { fridgeId?: string; channel?: string };
-    res.status(200).json(await adminService.listManualSales({ fridgeId, channel }));
+    const { fridgeId, channel, from, to } = req.query as { fridgeId?: string; channel?: string; from?: string; to?: string };
+    res.status(200).json(await adminService.listManualSales({
+      fridgeId,
+      channel,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+    }));
+  })
+);
+
+// Corrects a mistyped quantity on an already-recorded manual/vending sale —
+// there was no way to fix one before this short of deleting and re-entering.
+router.patch(
+  "/manual-sales/:id",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(updateManualSaleSchema),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.updateManualSale(req.params.id, req.body.quantity));
+  })
+);
+
+// Fully reverses a manual/vending sale recorded in error — gives every
+// unit back to quantityAvailable before deleting.
+router.delete(
+  "/manual-sales/:id",
+  requireRole("ADMIN", "KITCHEN"),
+  validate(idParamSchema),
+  asyncHandler(async (req, res) => {
+    await adminService.deleteManualSale(req.params.id);
+    res.status(204).send();
   })
 );
 
@@ -336,6 +365,18 @@ router.get(
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
     }));
+  })
+);
+
+// Distinct categories ever used — backs the dashboard's "pick existing or
+// create new" dropdown. Registered before "/expenses/:id" would matter,
+// but Express doesn't actually see this as ambiguous since it's a
+// completely different literal path segment.
+router.get(
+  "/expenses/categories",
+  requireRole("ADMIN"),
+  asyncHandler(async (_req, res) => {
+    res.status(200).json(await adminService.listExpenseCategories());
   })
 );
 

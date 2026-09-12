@@ -657,8 +657,8 @@
         <div class="card">
           <h3>All submissions</h3>
           <table>
-            <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
-            <tbody id="deliveryFeedbackTable"><tr class="empty-row"><td colspan="7">No feedback yet</td></tr></tbody>
+            <thead><tr><th>Date</th><th>Name</th><th>Phone</th><th>Location</th><th>Food ratings</th><th>Food suggestion</th><th>Service</th><th>Service comment</th></tr></thead>
+            <tbody id="deliveryFeedbackTable"><tr class="empty-row"><td colspan="8">No feedback yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -708,13 +708,15 @@
           <table class="breakdown-table">
             <tr><td>Sales</td><td id="pfSales" class="amt">—</td></tr>
             <tr><td class="sub-line">&nbsp;&nbsp;via app</td><td id="pfAppSales" class="amt sub-line">—</td></tr>
-            <tr><td class="sub-line">&nbsp;&nbsp;manual (backup QR)</td><td id="pfManualSales" class="amt sub-line">—</td></tr>
+            <tr><td class="sub-line">&nbsp;&nbsp;manual (bank QR)</td><td id="pfManualQrSales" class="amt sub-line">—</td></tr>
+            <tr><td class="sub-line">&nbsp;&nbsp;vending machine</td><td id="pfVendingSales" class="amt sub-line">—</td></tr>
             <tr><td>− Refunds</td><td id="pfRefunds" class="amt neg">—</td></tr>
             <tr><td>− COGS</td><td id="pfCogs" class="amt neg">—</td></tr>
             <tr><td>− Wastage cost</td><td id="pfWastage" class="amt neg">—</td></tr>
             <tr class="total-row"><td>Gross Profit</td><td id="pfGrossProfit" class="amt">—</td></tr>
             <tr><td>Gross Margin</td><td id="pfGrossMargin" class="amt">—</td></tr>
             <tr><td>− Expenses (this period)</td><td id="pfExpenses" class="amt neg">—</td></tr>
+            <tbody id="pfExpenseCategoryRows"></tbody>
             <tr class="total-row"><td>Net Profit</td><td id="pfNetProfit" class="amt">—</td></tr>
           </table>
           <div id="pfIncompleteNote" class="field-note hidden"></div>
@@ -725,7 +727,11 @@
           <label>Description</label>
           <input id="expDescription" placeholder="e.g. Shop rent — August" />
           <label>Category (optional)</label>
-          <input id="expCategory" placeholder="e.g. Rent, Salaries, Utilities" />
+          <select id="expCategorySelect" onchange="onExpenseCategoryChange()">
+            <option value="">No category</option>
+            <option value="__new__">+ Add new category…</option>
+          </select>
+          <input id="expCategoryNew" class="hidden" placeholder="New category name" style="margin-top:8px" />
           <div class="form-row-2">
             <div><label>Amount (₹)</label><input id="expAmount" type="number" placeholder="15000" /></div>
             <div><label>Date</label><input id="expDate" type="date" /></div>
@@ -739,6 +745,15 @@
         <table>
           <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th></th></tr></thead>
           <tbody id="expensesTable"><tr class="empty-row"><td colspan="5">No expenses in this period</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h3>Manual &amp; vending sales in this period</h3>
+        <div class="field-note" style="margin-top:0">A mistyped quantity can be corrected with Edit — it only adjusts the stock effect by the difference, not the full amount again. Delete fully reverses one recorded in error.</div>
+        <table>
+          <thead><tr><th>Date</th><th>Fridge</th><th>Product</th><th>Channel</th><th>Qty</th><th>Amount</th><th></th></tr></thead>
+          <tbody id="manualSalesTable"><tr class="empty-row"><td colspan="7">No manual or vending sales in this period</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -987,7 +1002,7 @@ function switchTab(tab) {
   if (tab === 'customers') loadCustomers();
   if (tab === 'staff') loadStaff();
   if (tab === 'feedback') loadFeedback();
-  if (tab === 'profitability') loadProfitability();
+  if (tab === 'profitability') { loadProfitability(); loadExpenseCategories(); }
   closeMobileSidebar();
 }
 
@@ -1895,7 +1910,8 @@ function loadProfitability() {
   api('/admin/profitability?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((p) => {
     document.getElementById('pfSales').textContent = money(p.sales);
     document.getElementById('pfAppSales').textContent = money(p.appSales);
-    document.getElementById('pfManualSales').textContent = money(p.manualSalesTotal);
+    document.getElementById('pfManualQrSales').textContent = money(p.manualQrSalesTotal);
+    document.getElementById('pfVendingSales').textContent = money(p.vendingSalesTotal);
     document.getElementById('pfRefunds').textContent = money(p.refunds);
     document.getElementById('pfCogs').textContent = money(p.cogs);
     document.getElementById('pfWastage').textContent = money(p.wastageCost);
@@ -1903,6 +1919,11 @@ function loadProfitability() {
     document.getElementById('pfGrossMargin').textContent = p.grossMarginPct != null ? p.grossMarginPct.toFixed(1) + '%' : '—';
     document.getElementById('pfExpenses').textContent = money(p.totalExpenses);
     document.getElementById('pfNetProfit').textContent = money(p.netProfit);
+
+    const catRows = document.getElementById('pfExpenseCategoryRows');
+    catRows.innerHTML = (p.expensesByCategory || []).map((c) => (
+      '<tr><td class="sub-line">&nbsp;&nbsp;' + c.category + '</td><td class="amt sub-line">' + money(c.amount) + '</td></tr>'
+    )).join('');
 
     const note = document.getElementById('pfIncompleteNote');
     if (p.itemsMissingCost > 0 || p.wastedUnitsMissingCost > 0) {
@@ -1924,25 +1945,89 @@ function loadProfitability() {
       '<td><button class="delete-link" onclick="deleteExpenseRow(\'' + e.id + '\',\'' + escQ(e.description) + '\')">Delete</button></td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="5">No expenses in this period</td></tr>';
   }).catch(() => {});
+
+  api('/admin/manual-sales?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((sales) => {
+    const tbody = document.getElementById('manualSalesTable');
+    tbody.innerHTML = sales.length ? sales.map((s) => (
+      '<tr><td>' + new Date(s.recordedAt).toLocaleString() + '</td>' +
+      '<td>' + s.fridge.name + '</td>' +
+      '<td>' + s.batch.product.name + '</td>' +
+      '<td>' + (s.channel === 'vending_machine' ? 'Vending machine' : 'Manual (bank QR)') + '</td>' +
+      '<td>' + s.quantity + '</td>' +
+      '<td>' + money(s.totalAmount) + '</td>' +
+      '<td><button class="qr-btn" onclick="editManualSale(\'' + s.id + '\',' + s.quantity + ')">Edit</button> ' +
+      '<button class="delete-link" onclick="deleteManualSaleRow(\'' + s.id + '\')">Delete</button></td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="7">No manual or vending sales in this period</td></tr>';
+  }).catch(() => {});
+}
+
+function editManualSale(id, currentQuantity) {
+  const input = prompt('Correct the quantity for this sale (currently ' + currentQuantity + '):', currentQuantity);
+  if (input === null) return;
+  const quantity = parseInt(input, 10);
+  if (isNaN(quantity) || quantity <= 0) { alert('Enter a valid quantity'); return; }
+  if (quantity === currentQuantity) return;
+  api('/admin/manual-sales/' + id, { method: 'PATCH', body: JSON.stringify({ quantity }) })
+    .then(() => loadProfitability())
+    .catch((e) => alert(e.message));
+}
+
+function deleteManualSaleRow(id) {
+  if (!confirm('Delete this sale record? This gives the units back to available stock.')) return;
+  api('/admin/manual-sales/' + id, { method: 'DELETE' })
+    .then(() => loadProfitability())
+    .catch((e) => alert(e.message));
+}
+
+function onExpenseCategoryChange() {
+  const sel = document.getElementById('expCategorySelect');
+  const newInput = document.getElementById('expCategoryNew');
+  if (sel.value === '__new__') {
+    newInput.classList.remove('hidden');
+    newInput.focus();
+  } else {
+    newInput.classList.add('hidden');
+    newInput.value = '';
+  }
+}
+
+function loadExpenseCategories() {
+  const sel = document.getElementById('expCategorySelect');
+  api('/admin/expenses/categories').then((categories) => {
+    const current = sel.value;
+    sel.innerHTML = '<option value="">No category</option>' +
+      categories.map((c) => '<option value="' + escQ(c) + '">' + c + '</option>').join('') +
+      '<option value="__new__">+ Add new category…</option>';
+    sel.value = current || '';
+  }).catch(() => {});
 }
 
 function createExpense() {
   const dateVal = document.getElementById('expDate').value || new Date().toISOString().slice(0, 10);
+  const categorySelect = document.getElementById('expCategorySelect').value;
+  const category = categorySelect === '__new__'
+    ? document.getElementById('expCategoryNew').value.trim() || undefined
+    : categorySelect || undefined;
+
   const body = {
     description: document.getElementById('expDescription').value.trim(),
-    category: document.getElementById('expCategory').value.trim() || undefined,
+    category: category,
     amount: parseFloat(document.getElementById('expAmount').value),
     incurredOn: toStartOfDayISO(dateVal),
   };
   if (!body.description || isNaN(body.amount) || body.amount <= 0) {
     alert('Description and a valid amount are required'); return;
   }
+  const isNewCategory = categorySelect === '__new__' && category;
   api('/admin/expenses', { method: 'POST', body: JSON.stringify(body) })
     .then(() => {
       document.getElementById('expDescription').value = '';
-      document.getElementById('expCategory').value = '';
+      document.getElementById('expCategorySelect').value = '';
+      document.getElementById('expCategoryNew').value = '';
+      document.getElementById('expCategoryNew').classList.add('hidden');
       document.getElementById('expAmount').value = '';
       document.getElementById('expDate').value = '';
+      if (isNewCategory) loadExpenseCategories(); // so it shows up in the dropdown next time
       loadProfitability();
     })
     .catch((e) => alert(e.message));
@@ -2016,14 +2101,16 @@ function switchFeedbackView(view) {
 }
 
 function openDeliveryFeedbackQr() {
-  const url = location.origin + '/feedback-delivery';
+  const kitchenLocation = prompt('Optional: name this QR for a specific kitchen/location (e.g. "Trivandrum"). Leave blank for a generic one.');
+  let url = location.origin + '/feedback-delivery';
+  if (kitchenLocation) url += '?location=' + encodeURIComponent(kitchenLocation);
   qrState.text = url;
-  qrState.label = 'Swiggy/Zomato Order Feedback';
+  qrState.label = 'Swiggy/Zomato Order Feedback' + (kitchenLocation ? ' — ' + kitchenLocation : '');
   qrState.sub = url;
-  qrState.fridgeCode = 'DELIVERY-FEEDBACK';
+  qrState.fridgeCode = kitchenLocation ? 'DELIVERY-' + kitchenLocation.toUpperCase() : 'DELIVERY-FEEDBACK';
   qrState.isBatch = false;
   qrState.batch = null;
-  renderQrModal('Swiggy/Zomato Feedback QR', url, false);
+  renderQrModal('Swiggy/Zomato Feedback QR' + (kitchenLocation ? ' — ' + kitchenLocation : ''), url, false);
 }
 
 function loadDeliveryFeedback() {
@@ -2047,23 +2134,26 @@ function loadDeliveryFeedback() {
       return '<tr><td>' + new Date(f.createdAt).toLocaleDateString() + '</td>' +
         '<td>' + (f.name || '—') + '</td>' +
         '<td>' + (f.phone || '—') + '</td>' +
+        '<td>' + (f.location || '—') + '</td>' +
         '<td>' + (foodParts.length ? foodParts.join(', ') : '—') + '</td>' +
         '<td>' + (f.foodSuggestion || '—') + '</td>' +
         '<td>' + (f.serviceRating != null ? f.serviceRating + ' ★' : '—') + '</td>' +
         '<td>' + (f.serviceComment || '—') + '</td></tr>';
-    }).join('') : '<tr class="empty-row"><td colspan="7">No feedback yet</td></tr>';
+    }).join('') : '<tr class="empty-row"><td colspan="8">No feedback yet</td></tr>';
   }).catch(() => {});
 }
 
 function openSubscriptionFeedbackQr() {
-  const url = location.origin + '/subscription-feedback';
+  const kitchenLocation = prompt('Optional: name this QR for a specific kitchen/location (e.g. "Kochi"). Leave blank for a generic one.');
+  let url = location.origin + '/subscription-feedback';
+  if (kitchenLocation) url += '?location=' + encodeURIComponent(kitchenLocation);
   qrState.text = url;
-  qrState.label = 'Subscription Feedback';
+  qrState.label = 'Subscription Feedback' + (kitchenLocation ? ' — ' + kitchenLocation : '');
   qrState.sub = url;
-  qrState.fridgeCode = 'SUBSCRIPTION-FEEDBACK';
+  qrState.fridgeCode = kitchenLocation ? 'SUBSCRIPTION-' + kitchenLocation.toUpperCase() : 'SUBSCRIPTION-FEEDBACK';
   qrState.isBatch = false;
   qrState.batch = null;
-  renderQrModal('Subscription Feedback QR', url, false);
+  renderQrModal('Subscription Feedback QR' + (kitchenLocation ? ' — ' + kitchenLocation : ''), url, false);
 }
 
 function loadSubscriptionFeedback() {

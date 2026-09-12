@@ -219,5 +219,15 @@ export const listManualSalesQuerySchema = z.object({
   query: z.object({
     fridgeId: z.string().optional(),
     channel: z.enum(["bank_qr", "vending_machine"]).optional(),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
   }),
+});
+
+export const updateManualSaleSchema = z.object({
+  body: z.object({
+    quantity: z.number().int().positive(),
+  }),
+  params: z.object({ id: z.string().min(1) }),
+  query: z.object({}).optional(),
 });

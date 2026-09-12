@@ -5,6 +5,7 @@ export const createFeedback = async (data: {
   phone?: string;
   fridgeCode?: string;
   source?: string; // "fridge" (default) | "swiggy_zomato"
+  location?: string; // free-text kitchen/location label, for swiggy_zomato QRs
   tasteRating?: number;
   quantityRating?: number;
   qualityRating?: number;
@@ -29,6 +30,7 @@ export const createFeedback = async (data: {
       phone: data.phone || undefined,
       source: data.source || "fridge",
       fridgeId,
+      location: data.location || undefined,
       tasteRating: data.tasteRating,
       quantityRating: data.quantityRating,
       qualityRating: data.qualityRating,
@@ -97,6 +99,7 @@ export const getFeedbackStats = async (source?: string) => {
 export const createSubscriptionFeedback = async (data: {
   name: string;
   phone?: string;
+  location?: string;
   satisfactionRating?: number;
   onTimeDeliveryRating?: number;
   goalsResultRating?: number;
@@ -112,6 +115,7 @@ export const createSubscriptionFeedback = async (data: {
     data: {
       name: data.name,
       phone: data.phone || undefined,
+      location: data.location || undefined,
       satisfactionRating: data.satisfactionRating,
       onTimeDeliveryRating: data.onTimeDeliveryRating,
       goalsResultRating: data.goalsResultRating,

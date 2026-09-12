@@ -378,15 +378,96 @@ export const recordManualSale = async (
   });
 };
 
-export const listManualSales = (filters: { fridgeId?: string; channel?: string }) => {
+export const listManualSales = (filters: { fridgeId?: string; channel?: string; from?: Date; to?: Date }) => {
   return prisma.manualSale.findMany({
     where: {
       ...(filters.fridgeId ? { fridgeId: filters.fridgeId } : {}),
       ...(filters.channel ? { channel: filters.channel } : {}),
+      ...(filters.from && filters.to ? { recordedAt: { gte: filters.from, lte: filters.to } } : {}),
     },
     include: { batch: { include: { product: true } }, fridge: true },
     orderBy: { recordedAt: "desc" },
     take: 300,
+  });
+};
+
+// Corrects the quantity on an already-recorded manual/vending sale — there
+// was no way to fix a mistyped quantity before this, short of deleting and
+// re-entering. Applies just the delta to FridgeStock (not the full
+// quantity again), keeps the original snapshotted unitPrice (this is a
+// quantity correction, not a re-sale at today's price), and recomputes
+// totalAmount from it.
+export const updateManualSale = async (id: string, newQuantity: number) => {
+  const sale = await prisma.manualSale.findUnique({ where: { id }, include: { batch: true } });
+  if (!sale) throw ApiError.notFound("Manual sale not found", "MANUAL_SALE_NOT_FOUND");
+
+  const delta = newQuantity - sale.quantity;
+  if (delta === 0) return sale;
+
+  const stock = await prisma.fridgeStock.findUnique({
+    where: { fridgeId_batchId: { fridgeId: sale.fridgeId, batchId: sale.batchId } },
+  });
+  if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
+
+  // Increasing the recorded quantity takes more units out of availability —
+  // can't take more than what's actually still there.
+  if (delta > 0 && delta > stock.quantityAvailable) {
+    throw ApiError.conflict(
+      `Only ${stock.quantityAvailable} more unit(s) are available — can't increase this sale by ${delta}`,
+      "EXCEEDS_AVAILABLE"
+    );
+  }
+
+  const newTotalAmount = sale.unitPrice.mul(newQuantity);
+
+  return prisma.$transaction(async (tx) => {
+    await tx.fridgeStock.update({
+      where: { fridgeId_batchId: { fridgeId: sale.fridgeId, batchId: sale.batchId } },
+      data: { quantityAvailable: { decrement: delta }, quantitySold: { increment: delta } },
+    });
+
+    const updated = await tx.manualSale.update({
+      where: { id },
+      data: { quantity: newQuantity, totalAmount: newTotalAmount },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: "MANUAL_SALE_CORRECTED",
+        entityType: "ManualSale",
+        entityId: id,
+        metadata: { previousQuantity: sale.quantity, newQuantity, delta },
+      },
+    });
+
+    return updated;
+  });
+};
+
+// Fully reverses a manual/vending sale — for when it was recorded in
+// error entirely, not just with the wrong quantity (use updateManualSale
+// for that). Gives every unit back to quantityAvailable and removes it
+// from quantitySold before deleting the record.
+export const deleteManualSale = async (id: string) => {
+  const sale = await prisma.manualSale.findUnique({ where: { id } });
+  if (!sale) throw ApiError.notFound("Manual sale not found", "MANUAL_SALE_NOT_FOUND");
+
+  return prisma.$transaction(async (tx) => {
+    await tx.fridgeStock.update({
+      where: { fridgeId_batchId: { fridgeId: sale.fridgeId, batchId: sale.batchId } },
+      data: { quantityAvailable: { increment: sale.quantity }, quantitySold: { decrement: sale.quantity } },
+    });
+
+    await tx.manualSale.delete({ where: { id } });
+
+    await tx.auditLog.create({
+      data: {
+        action: "MANUAL_SALE_DELETED",
+        entityType: "ManualSale",
+        entityId: id,
+        metadata: { quantity: sale.quantity, totalAmount: sale.totalAmount.toString() },
+      },
+    });
   });
 };
 
@@ -621,6 +702,19 @@ export const listExpenses = (filters: { from?: Date; to?: Date }) => {
   });
 };
 
+// Distinct categories ever used, for the dashboard's "pick existing or
+// create new" dropdown — so a typo-prone free-text field doesn't quietly
+// fragment "Rent" and "rent" into two categories in the breakdown.
+export const listExpenseCategories = async () => {
+  const rows = await prisma.expense.findMany({
+    where: { category: { not: null } },
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  });
+  return rows.map((r) => r.category).filter((c): c is string => c != null);
+};
+
 export const deleteExpense = async (id: string) => {
   const existing = await prisma.expense.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound("Expense not found", "EXPENSE_NOT_FOUND");
@@ -664,16 +758,22 @@ export const getProfitability = async (from: Date, to: Date) => {
     }
   }
 
-  // Manual sales — units sold via the backup bank QR when scan-and-pay was
-  // down. Real revenue, just outside the app, so they're folded into the
-  // same Sales/COGS totals rather than tracked as a separate category that
-  // profitability would otherwise miss.
+  // Manual/vending sales — units sold outside the app (backup bank QR when
+  // scan-and-pay was down, or a vending machine). Real revenue, so folded
+  // into the same Sales/COGS totals as app orders, but tracked separately
+  // by channel so each shows as its own line rather than one lump "manual"
+  // figure that hides which channel it actually came from.
   const manualSales = await prisma.manualSale.findMany({
     where: { recordedAt: { gte: from, lte: to } },
     include: { batch: true },
   });
-  const manualSalesTotal = manualSales.reduce((sum, m) => sum + Number(m.totalAmount), 0);
+  let manualQrSalesTotal = 0;
+  let vendingSalesTotal = 0;
   for (const sale of manualSales) {
+    const amount = Number(sale.totalAmount);
+    if (sale.channel === "vending_machine") vendingSalesTotal += amount;
+    else manualQrSalesTotal += amount;
+
     if (sale.batch.costPricePerUnit != null) {
       cogs += Number(sale.batch.costPricePerUnit) * sale.quantity;
     } else {
@@ -681,7 +781,7 @@ export const getProfitability = async (from: Date, to: Date) => {
     }
   }
 
-  const sales = appSales + manualSalesTotal;
+  const sales = appSales + manualQrSalesTotal + vendingSalesTotal;
 
   const wastedStockRows = await prisma.fridgeStock.findMany({
     where: { quantityWasted: { gt: 0 }, batch: { manufacturedAt: { gte: from, lte: to } } },
@@ -704,16 +804,30 @@ export const getProfitability = async (from: Date, to: Date) => {
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const netProfit = grossProfit - totalExpenses;
 
+  // Sub-total per category, so the statement shows what expenses actually
+  // consist of rather than one opaque lump sum. Uncategorized expenses
+  // (no category given) are grouped under that label rather than dropped.
+  const expensesByCategoryMap = new Map<string, number>();
+  for (const e of expenses) {
+    const key = e.category || "Uncategorized";
+    expensesByCategoryMap.set(key, (expensesByCategoryMap.get(key) ?? 0) + Number(e.amount));
+  }
+  const expensesByCategory = Array.from(expensesByCategoryMap.entries())
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
   return {
     sales,
     appSales,
-    manualSalesTotal,
+    manualQrSalesTotal,
+    vendingSalesTotal,
     refunds,
     cogs,
     wastageCost,
     grossProfit,
     grossMarginPct,
     totalExpenses,
+    expensesByCategory,
     netProfit,
     itemsMissingCost,
     wastedUnitsMissingCost,
