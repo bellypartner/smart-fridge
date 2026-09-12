@@ -41,11 +41,13 @@ export const createFeedback = async (data: {
 };
 
 export const listFeedback = (filters: { fridgeId?: string; source?: string }) => {
-  const where: { fridgeId?: string; source?: string | { in: (string | null)[] } } = {};
+  const where: { fridgeId?: string; source?: string; OR?: Array<{ source: string | null }> } = {};
   if (filters.fridgeId) where.fridgeId = filters.fridgeId;
   // Null source means "fridge" (rows from before this field existed) — so
-  // filtering for "fridge" has to include null, not just the literal string.
-  if (filters.source === "fridge") where.source = { in: ["fridge", null] };
+  // filtering for "fridge" has to match null too, not just the literal
+  // string. Prisma doesn't allow null inside an "in" array for a nullable
+  // string field, so this is expressed as OR instead.
+  if (filters.source === "fridge") where.OR = [{ source: "fridge" }, { source: null }];
   else if (filters.source) where.source = filters.source;
 
   return prisma.feedback.findMany({
@@ -61,8 +63,8 @@ export const listFeedback = (filters: { fridgeId?: string; source?: string }) =>
 // specific field, so a mostly-blank submission doesn't drag an average
 // toward zero.
 export const getFeedbackStats = async (source?: string) => {
-  const where: { source?: string | { in: (string | null)[] } } = {};
-  if (source === "fridge") where.source = { in: ["fridge", null] };
+  const where: { source?: string; OR?: Array<{ source: string | null }> } = {};
+  if (source === "fridge") where.OR = [{ source: "fridge" }, { source: null }];
   else if (source) where.source = source;
 
   const all = await prisma.feedback.findMany({ where });
