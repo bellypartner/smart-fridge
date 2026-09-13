@@ -282,36 +282,58 @@
     }
     .thermal-label .tl-text { flex: 1; min-width: 0; padding-right: 1mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
     .thermal-label .tl-name {
-      font-size: 3.4mm; font-weight: 700; line-height: 1.05; margin-bottom: 0.7mm;
+      font-size: 3.2mm; font-weight: 700; line-height: 1.05; margin-bottom: 0.5mm;
       word-break: break-word; overflow: hidden; display: -webkit-box;
       -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .thermal-label .tl-line { font-size: 2.5mm; font-weight: 700; line-height: 1.25; white-space: nowrap; }
+    .thermal-label .tl-line { font-size: 2.3mm; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+    /* Price gets its own bigger/bolder treatment, separate from the plain
+       Mfg/Exp detail lines — it's the one number a customer paying
+       manually via the backup bank QR actually needs to act on, so it
+       should be the most prominent line after the item name. Weight/
+       volume moved onto the Exp line to give this one room to be big
+       without the two competing for width on the same line. */
+    .thermal-label .tl-price-line { font-size: 2.8mm; font-weight: 800; line-height: 1.25; white-space: nowrap; margin: 0.3mm 0; }
     /* QR + code stacked in their own column, code centered directly under
        the QR — same visual convention as a "SCAN HERE" caption under a QR,
-       just with the actual batch code there instead. This replaced an
-       earlier version where the code ran the full width of the label
-       below everything; that's gone now in favor of this more compact,
-       QR-forward layout. */
-    .thermal-label .tl-qr-col { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 19mm; }
-    .thermal-label .tl-qr { width: 19mm; height: 19mm; }
+       just with the actual batch code there instead. The column is
+       deliberately wider than the QR image itself (24mm vs 21mm) — giving
+       the code text more horizontal room than just the QR's own width was
+       necessary once the QR grew to 21mm, otherwise even a normal-length
+       real batch code (not just an artificially long stress-test one)
+       started truncating, which defeats the point of a fallback code. */
+    .thermal-label .tl-qr-col { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 24mm; overflow: hidden; }
+    .thermal-label .tl-qr { width: 21mm; height: 21mm; flex-shrink: 0; }
     .thermal-label .tl-qr img { width: 100%; height: 100%; display: block; }
     .thermal-label .tl-code {
-      /* Clamped to 2 lines with an ellipsis if it overflows, rather than
-         silently cutting characters with no indicator — the QR column is
-         much narrower than the old full-width strip was, so a long fridge
-         code has real potential to overflow here. The QR itself always
-         encodes the complete, untruncated code regardless, so scanning is
-         never affected even when the visible caption is shortened. */
-      font-family: 'Courier New', monospace; font-weight: 700; font-size: 2mm; line-height: 1.15;
-      text-align: center; word-break: break-all; overflow: hidden;
-      margin-top: 0.5mm; width: 19mm;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      /* Single line with an ellipsis, not a 2-line clamp — at this QR
+         size there isn't vertical room left for a genuine second line
+         (a 2-line attempt was tested and it visibly overflowed the
+         label's fixed height). The QR itself always encodes the
+         complete, untruncated code regardless of what the caption
+         shows, so scanning is never affected — only the rare case of an
+         unusually long fridge code would ever show a shortened caption. */
+      font-family: 'Courier New', monospace; font-weight: 700; font-size: 1.85mm; line-height: 1.05;
+      text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-top: 0.3mm; width: 24mm; flex-shrink: 0;
     }
-    .thermal-label-fridge .tl-qr-col { width: 20mm; }
-    .thermal-label-fridge .tl-qr { width: 20mm; height: 20mm; }
-    .thermal-label-fridge .tl-code { width: 20mm; }
+    .thermal-label-fridge .tl-qr-col { width: 25mm; }
+    .thermal-label-fridge .tl-qr { width: 22mm; height: 22mm; }
+    .thermal-label-fridge .tl-code { width: 25mm; font-size: 2mm; }
     .thermal-label-fridge .tl-name { font-size: 4mm; -webkit-line-clamp: 2; }
+
+    /* Feedback QR label — marketing copy on the left, "SCAN HERE" under a
+       large QR on the right, matching a reference design the user
+       supplied (a wide feedback card with a dominant QR + caption). Used
+       for every feedback QR variant (generic, fridge-scoped, delivery,
+       subscription) — only the encoded URL changes between them. */
+    .thermal-label-feedback .tl-fb-text { flex: 1; min-width: 0; padding-right: 1mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+    .thermal-label-feedback .tl-fb-heading { font-size: 2.6mm; font-weight: 800; line-height: 1.15; margin-bottom: 1.2mm; }
+    .thermal-label-feedback .tl-fb-sub { font-size: 1.9mm; font-weight: 600; line-height: 1.3; color: #333; }
+    .thermal-label-feedback .tl-fb-url { font-size: 2.3mm; font-weight: 800; line-height: 1.2; }
+    .thermal-label-feedback .tl-qr-col { width: 21mm; }
+    .thermal-label-feedback .tl-qr { width: 21mm; height: 21mm; }
+    .thermal-label-feedback .tl-fb-scan { font-size: 2mm; font-weight: 700; line-height: 1.1; text-align: center; margin-top: 0.5mm; letter-spacing: 0.02em; }
   }
 </style>
 </head>
@@ -648,8 +670,17 @@
 
       <!-- SWIGGY/ZOMATO DELIVERY FEEDBACK VIEW -->
       <div id="feedbackDeliveryView" class="hidden">
-        <div class="page-sub">From the Swiggy/Zomato order feedback link — name and phone are both required, everything else is optional.
-          <button class="qr-btn" style="margin-left:8px" onclick="openDeliveryFeedbackQr()">Print a delivery feedback QR</button>
+        <div class="page-sub">From the Swiggy/Zomato order feedback link — name and phone are both required, everything else is optional.</div>
+
+        <div class="card" style="margin-bottom:20px">
+          <h3>Print a feedback QR</h3>
+          <div class="field-note" style="margin-top:0">Pick a kitchen/location you've already made a QR for to reprint the exact same one, add a new one, or leave it generic.</div>
+          <select id="deliveryQrLocationSelect" onchange="onQrLocationChange('delivery')">
+            <option value="">Generic (no location)</option>
+            <option value="__new__">+ Add new location…</option>
+          </select>
+          <input id="deliveryQrLocationNew" class="hidden" placeholder="New location name, e.g. Trivandrum" style="margin-top:8px" />
+          <button class="btn-cta" style="margin-top:14px" onclick="printDeliveryFeedbackQr()">Print QR</button>
         </div>
 
         <div class="stats-grid">
@@ -672,8 +703,17 @@
 
       <!-- SUBSCRIPTION FEEDBACK VIEW -->
       <div id="feedbackSubscriptionView" class="hidden">
-        <div class="page-sub">From the subscription feedback link — name is required, everything else is optional.
-          <button class="qr-btn" style="margin-left:8px" onclick="openSubscriptionFeedbackQr()">Print a subscription feedback QR</button>
+        <div class="page-sub">From the subscription feedback link — name is required, everything else is optional.</div>
+
+        <div class="card" style="margin-bottom:20px">
+          <h3>Print a feedback QR</h3>
+          <div class="field-note" style="margin-top:0">Pick a kitchen/location you've already made a QR for to reprint the exact same one, add a new one, or leave it generic.</div>
+          <select id="subscriptionQrLocationSelect" onchange="onQrLocationChange('subscription')">
+            <option value="">Generic (no location)</option>
+            <option value="__new__">+ Add new location…</option>
+          </select>
+          <input id="subscriptionQrLocationNew" class="hidden" placeholder="New location name, e.g. Kochi" style="margin-top:8px" />
+          <button class="btn-cta" style="margin-top:14px" onclick="printSubscriptionFeedbackQr()">Print QR</button>
         </div>
 
         <div class="stats-grid">
@@ -1439,6 +1479,7 @@ function openFridgeQr(code, name) {
   qrState.sub = url;
   qrState.fridgeCode = code;
   qrState.isBatch = false;
+  qrState.isFeedback = false;
   qrState.batch = null;
   renderQrModal('Fridge QR — ' + name, url, false);
 }
@@ -1450,6 +1491,7 @@ function openFeedbackQr(code, name) {
   qrState.sub = url;
   qrState.fridgeCode = code;
   qrState.isBatch = false;
+  qrState.isFeedback = true;
   qrState.batch = null;
   renderQrModal('Feedback QR — ' + name, url, false);
 }
@@ -1461,6 +1503,7 @@ function openGenericFeedbackQr() {
   qrState.sub = url;
   qrState.fridgeCode = 'FEEDBACK';
   qrState.isBatch = false;
+  qrState.isFeedback = true;
   qrState.batch = null;
   renderQrModal('Feedback QR — general', url, false);
 }
@@ -1476,6 +1519,7 @@ function openBatchQr(batchIdOrObj, defaultQty) {
   qrState.label = b.product.name;
   qrState.sub = b.batchCode;
   qrState.isBatch = true;
+  qrState.isFeedback = false;
   qrState.batch = b;
   renderQrModal('Batch QR — ' + b.product.name, b.batchCode, true, copies);
 }
@@ -1553,24 +1597,41 @@ function printQrSheet() {
     // Selling price, not MRP — this is what a customer who can't scan
     // and has to pay manually (bank QR) should actually pay, matching
     // what the app itself would charge. Printing MRP here would have
-    // silently overcharged anyone using that fallback.
+    // silently overcharged anyone using that fallback. "Price" (not
+    // "Pay") is deliberately its own bold/bigger line — weight or
+    // volume gets folded onto the Exp line instead of sharing this one,
+    // so Price has room to be the most prominent number on the label
+    // after the item name.
     const priceValue = Number(b.product.sellingPrice).toFixed(0);
-    const qtyPriceParts = [];
-    if (b.product.weightGrams) qtyPriceParts.push(b.product.weightGrams + 'g');
-    else if (b.product.volumeMl) qtyPriceParts.push(b.product.volumeMl + 'ml');
-    qtyPriceParts.push('Pay ₹' + priceValue);
-    const qtyPriceLine = '<div class="tl-line">' + qtyPriceParts.join(' · ') + '</div>';
+    const priceLine = '<div class="tl-price-line">Price ₹' + priceValue + '</div>';
+    const expParts = ['Exp ' + formatLabelDateTime(b.expiresAt)];
+    if (b.product.weightGrams) expParts.push(b.product.weightGrams + 'g');
+    else if (b.product.volumeMl) expParts.push(b.product.volumeMl + 'ml');
+    const expLine = '<div class="tl-line">' + expParts.join(' · ') + '</div>';
     labelHtml =
       '<div class="thermal-label">' +
         '<div class="tl-text">' +
           '<div class="tl-name">' + b.product.name + '</div>' +
           '<div class="tl-line">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div>' +
-          qtyPriceLine +
-          '<div class="tl-line">Exp ' + formatLabelDateTime(b.expiresAt) + '</div>' +
+          priceLine +
+          expLine +
         '</div>' +
         '<div class="tl-qr-col">' +
           '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
           '<div class="tl-code">' + b.batchCode + '</div>' +
+        '</div>' +
+      '</div>';
+  } else if (qrState.isFeedback) {
+    labelHtml =
+      '<div class="thermal-label thermal-label-feedback">' +
+        '<div class="tl-fb-text">' +
+          '<div class="tl-fb-heading">Send us your Feedback / Complaints</div>' +
+          '<div class="tl-fb-sub">Next time order at</div>' +
+          '<div class="tl-fb-url">saladcaffe.com</div>' +
+        '</div>' +
+        '<div class="tl-qr-col">' +
+          '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+          '<div class="tl-fb-scan">SCAN HERE</div>' +
         '</div>' +
       '</div>';
   } else {
@@ -2103,21 +2164,83 @@ function switchFeedbackView(view) {
     btn.style.color = isActive ? 'var(--white)' : '';
     btn.style.borderColor = isActive ? 'var(--primary)' : '';
   });
-  if (view === 'delivery') loadDeliveryFeedback();
-  if (view === 'subscription') loadSubscriptionFeedback();
+  if (view === 'delivery') { loadDeliveryFeedback(); loadQrLocations('delivery'); }
+  if (view === 'subscription') { loadSubscriptionFeedback(); loadQrLocations('subscription'); }
 }
 
-function openDeliveryFeedbackQr() {
-  const kitchenLocation = prompt('Optional: name this QR for a specific kitchen/location (e.g. "Trivandrum"). Leave blank for a generic one.');
-  let url = location.origin + '/feedback-delivery';
+// Builds and prints a location-scoped (or generic) QR for either delivery
+// or subscription feedback — shared by both, since the only difference is
+// which URL path and which qrState.fridgeCode prefix gets used.
+function buildAndPrintFeedbackQr(kind, kitchenLocation) {
+  const path = kind === 'delivery' ? '/feedback-delivery' : '/subscription-feedback';
+  const label = kind === 'delivery' ? 'Swiggy/Zomato Order Feedback' : 'Subscription Feedback';
+  const codePrefix = kind === 'delivery' ? 'DELIVERY' : 'SUBSCRIPTION';
+  let url = location.origin + path;
   if (kitchenLocation) url += '?location=' + encodeURIComponent(kitchenLocation);
   qrState.text = url;
-  qrState.label = 'Swiggy/Zomato Order Feedback' + (kitchenLocation ? ' — ' + kitchenLocation : '');
+  qrState.label = label + (kitchenLocation ? ' — ' + kitchenLocation : '');
   qrState.sub = url;
-  qrState.fridgeCode = kitchenLocation ? 'DELIVERY-' + kitchenLocation.toUpperCase() : 'DELIVERY-FEEDBACK';
+  qrState.fridgeCode = kitchenLocation ? codePrefix + '-' + kitchenLocation.toUpperCase() : codePrefix + '-FEEDBACK';
   qrState.isBatch = false;
+  qrState.isFeedback = true;
   qrState.batch = null;
-  renderQrModal('Swiggy/Zomato Feedback QR' + (kitchenLocation ? ' — ' + kitchenLocation : ''), url, false);
+  renderQrModal((kind === 'delivery' ? 'Swiggy/Zomato' : 'Subscription') + ' Feedback QR' + (kitchenLocation ? ' — ' + kitchenLocation : ''), url, false);
+}
+
+// Reveals/hides the "new location" text input when the dropdown's
+// "+ Add new location…" option is selected — same interaction pattern as
+// the expense category dropdown.
+function onQrLocationChange(kind) {
+  const sel = document.getElementById(kind + 'QrLocationSelect');
+  const newInput = document.getElementById(kind + 'QrLocationNew');
+  if (sel.value === '__new__') {
+    newInput.classList.remove('hidden');
+    newInput.focus();
+  } else {
+    newInput.classList.add('hidden');
+    newInput.value = '';
+  }
+}
+
+function loadQrLocations(kind) {
+  const sel = document.getElementById(kind + 'QrLocationSelect');
+  api('/admin/qr-locations?type=' + kind).then((rows) => {
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Generic (no location)</option>' +
+      rows.map((r) => '<option value="' + escQ(r.location) + '">' + r.location + '</option>').join('') +
+      '<option value="__new__">+ Add new location…</option>';
+    sel.value = current || '';
+  }).catch(() => {});
+}
+
+function printDeliveryFeedbackQr() {
+  const sel = document.getElementById('deliveryQrLocationSelect');
+  const isNew = sel.value === '__new__';
+  const kitchenLocation = isNew ? document.getElementById('deliveryQrLocationNew').value.trim() : sel.value;
+  if (isNew && !kitchenLocation) { alert('Enter a location name, or switch back to "Generic"'); return; }
+
+  if (kitchenLocation && isNew) {
+    api('/admin/qr-locations', { method: 'POST', body: JSON.stringify({ type: 'delivery', location: kitchenLocation }) })
+      .then(() => { loadQrLocations('delivery'); buildAndPrintFeedbackQr('delivery', kitchenLocation); })
+      .catch((e) => alert(e.message));
+  } else {
+    buildAndPrintFeedbackQr('delivery', kitchenLocation || undefined);
+  }
+}
+
+function printSubscriptionFeedbackQr() {
+  const sel = document.getElementById('subscriptionQrLocationSelect');
+  const isNew = sel.value === '__new__';
+  const kitchenLocation = isNew ? document.getElementById('subscriptionQrLocationNew').value.trim() : sel.value;
+  if (isNew && !kitchenLocation) { alert('Enter a location name, or switch back to "Generic"'); return; }
+
+  if (kitchenLocation && isNew) {
+    api('/admin/qr-locations', { method: 'POST', body: JSON.stringify({ type: 'subscription', location: kitchenLocation }) })
+      .then(() => { loadQrLocations('subscription'); buildAndPrintFeedbackQr('subscription', kitchenLocation); })
+      .catch((e) => alert(e.message));
+  } else {
+    buildAndPrintFeedbackQr('subscription', kitchenLocation || undefined);
+  }
 }
 
 function loadDeliveryFeedback() {
@@ -2150,18 +2273,6 @@ function loadDeliveryFeedback() {
   }).catch(() => {});
 }
 
-function openSubscriptionFeedbackQr() {
-  const kitchenLocation = prompt('Optional: name this QR for a specific kitchen/location (e.g. "Kochi"). Leave blank for a generic one.');
-  let url = location.origin + '/subscription-feedback';
-  if (kitchenLocation) url += '?location=' + encodeURIComponent(kitchenLocation);
-  qrState.text = url;
-  qrState.label = 'Subscription Feedback' + (kitchenLocation ? ' — ' + kitchenLocation : '');
-  qrState.sub = url;
-  qrState.fridgeCode = kitchenLocation ? 'SUBSCRIPTION-' + kitchenLocation.toUpperCase() : 'SUBSCRIPTION-FEEDBACK';
-  qrState.isBatch = false;
-  qrState.batch = null;
-  renderQrModal('Subscription Feedback QR' + (kitchenLocation ? ' — ' + kitchenLocation : ''), url, false);
-}
 
 function loadSubscriptionFeedback() {
   api('/admin/subscription-feedback/stats').then((stats) => {

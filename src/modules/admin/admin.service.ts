@@ -715,6 +715,24 @@ export const listExpenseCategories = async () => {
   return rows.map((r) => r.category).filter((c): c is string => c != null);
 };
 
+// Remembers a location name the first time it's used for a delivery or
+// subscription feedback QR — upsert so generating the same location's QR
+// again later doesn't error or duplicate.
+export const recordQrLocation = async (type: string, location: string) => {
+  return prisma.qrLocation.upsert({
+    where: { type_location: { type, location } },
+    update: {},
+    create: { type, location },
+  });
+};
+
+export const listQrLocations = (type: string) => {
+  return prisma.qrLocation.findMany({
+    where: { type },
+    orderBy: { location: "asc" },
+  });
+};
+
 export const deleteExpense = async (id: string) => {
   const existing = await prisma.expense.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound("Expense not found", "EXPENSE_NOT_FOUND");

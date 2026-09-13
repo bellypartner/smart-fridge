@@ -830,6 +830,46 @@ sale's stock effect (units go back to `quantityAvailable`, out of
 `quantitySold`) before removing the record — for when one was recorded
 in error entirely, not just with the wrong number.
 
+## A dedicated marketing label for feedback QRs
+
+Every feedback QR (generic, fridge-scoped, Swiggy/Zomato, subscription)
+used to print with the same plain "name + QR + code" template as a
+fridge's shop QR. It now has its own design instead, based on a
+reference the user supplied: **"Send us your Feedback / Complaints"**
++ **"Next time order at saladcaffe.com"** on the left, a large QR with
+a **"SCAN HERE"** caption directly under it on the right —
+`.thermal-label-feedback` in the CSS, selected via a `qrState.isFeedback`
+flag every feedback-QR opener function sets (and every non-feedback one
+explicitly clears, since `qrState` is a single shared object reused
+across every QR type printed in a session). The heading wraps across
+lines on its own — getting `Feedback / Complaints` to wrap naturally
+at the slash instead of running off the edge needed actual spaces
+around it in the markup; a browser won't break a line at a bare `/`
+the way it will at a space.
+
+**Price label adjustments**, all on the same 50mm×25mm physical label:
+
+- QR grew from 19mm to 21mm.
+- The caption column under the QR grew from 19mm to 24mm — wider than
+  the QR image itself. This wasn't optional: once the QR reached 21mm,
+  even the user's actual (short) real batch code started truncating in
+  testing, not just an artificially long stress-test one. Widening the
+  column past the QR's own width fixed that. It's a single line with an
+  ellipsis, not a 2-line clamp — a 2-line attempt was tested and it
+  visibly overflowed the label's fixed height once the QR grew this
+  much, since there's no space left over as it was before.
+- "Pay ₹X" became "Price ₹X", split onto its own bold/bigger line
+  (`.tl-price-line`, distinct from the plain `.tl-line` class Mfg/Exp
+  use) so it's the most prominent number on the label after the item
+  name. Weight/volume moved onto the Exp line to free up room for this.
+
+All of the above was verified the same way as previous label
+changes — rendered at true physical size, margins measured precisely
+(not eyeballed), and the QR decoded back to confirm it matches exactly,
+including a stress test with a deliberately long fridge code to check
+the truncation behavior stays safe rather than silently dropping
+characters.
+
 ## Location-scoped feedback QRs (Swiggy/Zomato and subscription)
 
 Fridge feedback has always been optionally scoped to a fridge via
@@ -841,14 +881,22 @@ entity (there's no separate "Location" model), just a plain string
 tag, since a delivery order or a subscription customer was never
 picked up from a specific physical fridge unit.
 
-Generating one: the **"Print a delivery feedback QR"** button (Feedback
-tab → Swiggy/Zomato view) and **"Print a subscription feedback QR"**
-button (Feedback tab → Subscription view) both prompt for an optional
-location name before building the link (`/feedback-delivery?location=Trivandrum`,
-`/subscription-feedback?location=Kochi`) — leave it blank for a
-generic, unscoped QR. The public form shows "Feedback for <location>"
-near the top when the link carried one, the same convention fridge
-feedback already used.
+Generating one: the **"Print a feedback QR"** card (Feedback tab →
+Swiggy/Zomato view, and separately in the Subscription view) has a
+dropdown — **Generic (no location)**, every location already used, or
+**"+ Add new location…"** — rather than a blind one-off prompt like an
+earlier version had. Picking an existing location reprints the exact
+same link; adding a new one saves it (`QrLocation`, a small table just
+remembering which location strings have been used per QR type — the
+`location` field itself is still just a plain string on `Feedback`/
+`SubscriptionFeedback`, not a foreign key) before printing, so it shows
+up in the dropdown for next time too. This exists specifically because
+the original prompt-based version had no way to find "what locations
+have I already made a QR for" later — each one only ever existed as a
+one-off result, easy to lose track of or accidentally retype slightly
+differently. The public form shows "Feedback for <location>" near the
+top when the link carried one, the same convention fridge feedback
+already used.
 
 ## Expense categories — pick existing or add new, sub-totaled in the statement
 

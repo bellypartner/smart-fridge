@@ -193,6 +193,23 @@ export const listExpensesQuerySchema = z.object({
   }),
 });
 
+export const recordQrLocationSchema = z.object({
+  body: z.object({
+    type: z.enum(["delivery", "subscription"]),
+    location: z.string().trim().min(1).max(120),
+  }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+export const listQrLocationsQuerySchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({
+    type: z.enum(["delivery", "subscription"]),
+  }),
+});
+
 export const profitabilityQuerySchema = z.object({
   body: z.object({}).optional(),
   params: z.object({}).optional(),

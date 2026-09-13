@@ -13,10 +13,12 @@ import {
   idParamSchema,
   listExpensesQuerySchema,
   listManualSalesQuerySchema,
+  listQrLocationsQuerySchema,
   listOrdersQuerySchema,
   markOrderPaidSchema,
   profitabilityQuerySchema,
   recordManualSaleSchema,
+  recordQrLocationSchema,
   recordRefundSchema,
   stockParamSchema,
   updateBatchStatusSchema,
@@ -387,6 +389,28 @@ router.delete(
   asyncHandler(async (req, res) => {
     await adminService.deleteExpense(req.params.id);
     res.status(204).send();
+  })
+);
+
+// ── QR locations — remembers kitchen/location names used for delivery
+// and subscription feedback QRs, so a previously-created one can be
+// reprinted later instead of only existing as a one-off prompt ──
+router.post(
+  "/qr-locations",
+  requireRole("ADMIN"),
+  validate(recordQrLocationSchema),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await adminService.recordQrLocation(req.body.type, req.body.location));
+  })
+);
+
+router.get(
+  "/qr-locations",
+  requireRole("ADMIN"),
+  validate(listQrLocationsQuerySchema),
+  asyncHandler(async (req, res) => {
+    const { type } = req.query as { type: string };
+    res.status(200).json(await adminService.listQrLocations(type));
   })
 );
 

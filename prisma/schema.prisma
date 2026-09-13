@@ -411,3 +411,24 @@ model ManualSale {
   @@index([batchId])
   @@index([recordedAt])
 }
+
+// ─────────────────────────────────────────────
+// QrLocation — remembers every kitchen/location name used to generate a
+// delivery (Swiggy/Zomato) or subscription feedback QR. Without this,
+// each location-scoped QR only ever existed as a one-off prompt result —
+// there was no way to find "what locations have I already made QRs for"
+// later in order to reprint the exact same one. Not tied to any other
+// entity (there's no separate "Location" model) — location on Feedback/
+// SubscriptionFeedback is still just a free-text string; this table only
+// exists to remember which strings have been used before.
+// ─────────────────────────────────────────────
+
+model QrLocation {
+  id        String   @id @default(cuid())
+  type      String   // "delivery" | "subscription"
+  location  String
+  createdAt DateTime @default(now())
+
+  @@unique([type, location])
+  @@index([type])
+}
