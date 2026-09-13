@@ -276,11 +276,10 @@
 
     .thermal-label {
       width: 50mm; height: 25mm; box-sizing: border-box;
-      display: flex; flex-direction: column; padding: 1mm 1mm 0.5mm;
+      display: flex; flex-direction: row; padding: 1mm 1mm 0.5mm;
       page-break-after: always; break-after: page;
       font-family: Arial, Helvetica, sans-serif; color: #000;
     }
-    .thermal-label .tl-main { flex: 1; min-height: 0; display: flex; align-items: center; overflow: hidden; }
     .thermal-label .tl-text { flex: 1; min-width: 0; padding-right: 1mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
     .thermal-label .tl-name {
       font-size: 3.4mm; font-weight: 700; line-height: 1.05; margin-bottom: 0.7mm;
@@ -288,22 +287,30 @@
       -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
     .thermal-label .tl-line { font-size: 2.5mm; font-weight: 700; line-height: 1.25; white-space: nowrap; }
-    .thermal-label .tl-qr { width: 18mm; height: 18mm; flex-shrink: 0; }
+    /* QR + code stacked in their own column, code centered directly under
+       the QR — same visual convention as a "SCAN HERE" caption under a QR,
+       just with the actual batch code there instead. This replaced an
+       earlier version where the code ran the full width of the label
+       below everything; that's gone now in favor of this more compact,
+       QR-forward layout. */
+    .thermal-label .tl-qr-col { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; width: 19mm; }
+    .thermal-label .tl-qr { width: 19mm; height: 19mm; }
     .thermal-label .tl-qr img { width: 100%; height: 100%; display: block; }
     .thermal-label .tl-code {
-      /* Single line, always — a wrapping code strip made the layout's
-         total height unpredictable and let content bleed past the
-         label's fixed 25mm boundary in testing. Truncating with an
-         ellipsis instead keeps this rock solid regardless of code
-         length; the QR itself always encodes the full untruncated
-         code either way, so scanning is never affected — only the
-         rare case of an unusually long fridge code would ever show a
-         shortened fallback text. */
-      font-family: 'Courier New', monospace; font-size: 3mm; font-weight: 700; line-height: 1.1;
-      text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      margin-top: 0.5mm; flex-shrink: 0;
+      /* Clamped to 2 lines with an ellipsis if it overflows, rather than
+         silently cutting characters with no indicator — the QR column is
+         much narrower than the old full-width strip was, so a long fridge
+         code has real potential to overflow here. The QR itself always
+         encodes the complete, untruncated code regardless, so scanning is
+         never affected even when the visible caption is shortened. */
+      font-family: 'Courier New', monospace; font-weight: 700; font-size: 2mm; line-height: 1.15;
+      text-align: center; word-break: break-all; overflow: hidden;
+      margin-top: 0.5mm; width: 19mm;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .thermal-label-fridge .tl-qr { width: 18mm; height: 18mm; }
+    .thermal-label-fridge .tl-qr-col { width: 20mm; }
+    .thermal-label-fridge .tl-qr { width: 20mm; height: 20mm; }
+    .thermal-label-fridge .tl-code { width: 20mm; }
     .thermal-label-fridge .tl-name { font-size: 4mm; -webkit-line-clamp: 2; }
   }
 </style>
@@ -1555,25 +1562,25 @@ function printQrSheet() {
     const qtyPriceLine = '<div class="tl-line">' + qtyPriceParts.join(' · ') + '</div>';
     labelHtml =
       '<div class="thermal-label">' +
-        '<div class="tl-main">' +
-          '<div class="tl-text">' +
-            '<div class="tl-name">' + b.product.name + '</div>' +
-            '<div class="tl-line">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div>' +
-            qtyPriceLine +
-            '<div class="tl-line">Exp ' + formatLabelDateTime(b.expiresAt) + '</div>' +
-          '</div>' +
-          '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+        '<div class="tl-text">' +
+          '<div class="tl-name">' + b.product.name + '</div>' +
+          '<div class="tl-line">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div>' +
+          qtyPriceLine +
+          '<div class="tl-line">Exp ' + formatLabelDateTime(b.expiresAt) + '</div>' +
         '</div>' +
-        '<div class="tl-code">' + b.batchCode + '</div>' +
+        '<div class="tl-qr-col">' +
+          '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+          '<div class="tl-code">' + b.batchCode + '</div>' +
+        '</div>' +
       '</div>';
   } else {
     labelHtml =
       '<div class="thermal-label thermal-label-fridge">' +
-        '<div class="tl-main">' +
-          '<div class="tl-text"><div class="tl-name">' + qrState.label + '</div></div>' +
+        '<div class="tl-text"><div class="tl-name">' + qrState.label + '</div></div>' +
+        '<div class="tl-qr-col">' +
           '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
+          '<div class="tl-code">' + qrState.fridgeCode + '</div>' +
         '</div>' +
-        '<div class="tl-code">' + qrState.fridgeCode + '</div>' +
       '</div>';
   }
 

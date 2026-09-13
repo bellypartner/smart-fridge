@@ -390,13 +390,24 @@ between copies), so set your printer/driver's label size to match and
 Layout: item name (bold, large) with manufactured date **and time**,
 then weight/volume and price combined onto one line (e.g. `180g · Pay
 ₹150`), then expiry date **and time** — all stacked on the left, bold
-throughout; an **18mm×18mm QR code** on the right; and a **readable
-text strip along the bottom printing the batch code itself** (not just
-encoded in the QR). This matters operationally: if a scan ever fails —
-camera trouble, a damaged or smudged label — there's still a
-human-readable code that can be typed into the shop app's "Can't scan?
-Enter the code" fallback, so a failed scan never means the item is
-simply unbuyable.
+throughout; a **19mm×19mm QR code in its own column on the right, with
+the batch code printed directly underneath it** — the same visual
+convention as a "SCAN HERE" caption sitting right under a QR, just with
+the actual code there instead. This matters operationally: if a scan
+ever fails — camera trouble, a damaged or smudged label — there's
+still a human-readable code that can be typed into the shop app's
+"Can't scan? Enter the code" fallback, so a failed scan never means the
+item is simply unbuyable. An earlier version ran the code along the
+full width of the label below everything else rather than directly
+under the QR; this replaced that, both to visually match the "QR with
+a caption under it" convention and to make the QR itself the dominant
+element on the label. The narrower column this puts the code text in
+means a genuinely long fridge code has more real chance of needing to
+truncate than the old full-width strip did — it's clamped to 2 lines
+with a trailing `…` if it overflows, rather than silently cutting
+characters with no indicator; the QR always encodes the complete,
+untruncated code regardless; only the human-readable caption for an
+unusually long code would ever come up short.
 
 **The price line shows the actual selling price, not MRP — on purpose.**
 If a customer can't scan and just calculates by hand what to pay via the
@@ -407,7 +418,7 @@ struck-through next to the real selling price whenever they differ, the
 same "you're paying less than MRP" framing a printed discount label
 would use, just on-screen.
 
-**QR size is 18mm×18mm** — sized up from an earlier, smaller version
+**QR size is 19mm×19mm** — sized up from an earlier, smaller version
 after real-world feedback that a number of phone cameras couldn't
 reliably read it at the smaller size. Legibility of the physical label
 took priority over fitting the absolute maximum text on it; see the
