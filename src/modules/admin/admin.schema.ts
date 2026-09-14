@@ -126,9 +126,12 @@ export const updateFridgeSchema = z.object({
   query: z.object({}).optional(),
 });
 
-export const updateBatchStatusSchema = z.object({
+export const updateBatchSchema = z.object({
   body: z.object({
-    status: z.enum(["ACTIVE", "EXPIRED", "RECALLED"]),
+    status: z.enum(["ACTIVE", "EXPIRED", "RECALLED"]).optional(),
+    totalQuantity: z.number().int().positive().optional(),
+  }).refine((data) => data.status !== undefined || data.totalQuantity !== undefined, {
+    message: "Provide at least one of status or totalQuantity",
   }),
   params: idParam,
   query: z.object({}).optional(),

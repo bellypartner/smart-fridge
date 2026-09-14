@@ -152,10 +152,13 @@ export const createBatch = async (data: {
   });
 };
 
-export const updateBatchStatus = async (id: string, status: "ACTIVE" | "EXPIRED" | "RECALLED") => {
+export const updateBatch = async (
+  id: string,
+  data: Partial<{ status: "ACTIVE" | "EXPIRED" | "RECALLED"; totalQuantity: number }>
+) => {
   const existing = await prisma.batch.findUnique({ where: { id } });
   if (!existing) throw ApiError.notFound("Batch not found", "BATCH_NOT_FOUND");
-  return prisma.batch.update({ where: { id }, data: { status }, include: { product: true } });
+  return prisma.batch.update({ where: { id }, data, include: { product: true } });
 };
 
 export const deleteBatch = async (id: string) => {

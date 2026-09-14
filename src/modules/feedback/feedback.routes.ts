@@ -43,37 +43,38 @@ subscriptionFeedbackRouter.post(
   asyncHandler(feedbackController.createSubscriptionFeedback)
 );
 
-// ── Admin-only viewing — mounted separately under /api/admin/feedback ──
+// ── Feedback viewing — ADMIN and KITCHEN can both see ratings/reports;
+// generating a location-scoped QR (POST /admin/qr-locations, in
+// admin.routes.ts) stays ADMIN-only — see comment there. ──
 export const adminFeedbackRouter = Router();
 adminFeedbackRouter.use(requireAuth);
 
 adminFeedbackRouter.get(
   "/",
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "KITCHEN"),
   validate(listFeedbackQuerySchema),
   asyncHandler(feedbackController.listFeedback)
 );
 
 adminFeedbackRouter.get(
   "/stats",
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "KITCHEN"),
   validate(listFeedbackQuerySchema),
   asyncHandler(feedbackController.getFeedbackStats)
 );
 
-// ── Admin-only viewing for subscription feedback — mounted under
-// /api/admin/subscription-feedback ──
+// ── Subscription feedback viewing — same ADMIN+KITCHEN access as above ──
 export const adminSubscriptionFeedbackRouter = Router();
 adminSubscriptionFeedbackRouter.use(requireAuth);
 
 adminSubscriptionFeedbackRouter.get(
   "/",
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "KITCHEN"),
   asyncHandler(feedbackController.listSubscriptionFeedback)
 );
 
 adminSubscriptionFeedbackRouter.get(
   "/stats",
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "KITCHEN"),
   asyncHandler(feedbackController.getSubscriptionFeedbackStats)
 );

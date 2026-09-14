@@ -21,7 +21,7 @@ import {
   recordQrLocationSchema,
   recordRefundSchema,
   stockParamSchema,
-  updateBatchStatusSchema,
+  updateBatchSchema,
   updateCategorySchema,
   updateFridgeSchema,
   updateManualSaleSchema,
@@ -132,9 +132,9 @@ router.get(
 router.patch(
   "/batches/:id",
   requireRole("ADMIN", "KITCHEN"),
-  validate(updateBatchStatusSchema),
+  validate(updateBatchSchema),
   asyncHandler(async (req, res) => {
-    res.status(200).json(await adminService.updateBatchStatus(req.params.id, req.body.status));
+    res.status(200).json(await adminService.updateBatch(req.params.id, req.body));
   })
 );
 

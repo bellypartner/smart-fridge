@@ -141,7 +141,12 @@
   .mobile-menu-btn { display: none; }
   .sidebar-backdrop { display: none; }
 
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+
   /* ── Mobile (phones/small tablets) — desktop layout above is untouched ── */
+  .stock-cards-mobile { display: none; }
+
   @media (max-width: 768px) {
     .mobile-menu-btn {
       display: flex; align-items: center; justify-content: center;
@@ -167,10 +172,28 @@
     .card { padding: 16px; overflow-x: auto; }
     .card table { min-width: 480px; }
     .card-header-row { flex-direction: column; align-items: flex-start; gap: 8px; }
-  }
 
-  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 24px; align-items: start; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    /* Stock tab specifically gets a card layout instead of a shrunk table
+       below this breakpoint — an 8-column table with 4 action buttons per
+       row doesn't work as a horizontally-scrolling table on a phone when
+       it's the thing being used most often from a phone, at the fridge. */
+    .stock-table-desktop { display: none; }
+    .stock-cards-mobile { display: flex; flex-direction: column; gap: 12px; }
+    .stock-card {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+      background: var(--white);
+    }
+    .stock-card.mismatch { background: #FFFBF5; border-color: #FFD199; }
+    .stock-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+    .stock-card-name { font-weight: 700; font-size: 15px; color: var(--heading); }
+    .stock-card-sub { font-size: 12px; color: var(--body); margin-bottom: 10px; }
+    .stock-card-bar-wrap { margin-bottom: 10px; }
+    .stock-card-stats { display: flex; gap: 14px; font-size: 12.5px; color: var(--heading); margin-bottom: 12px; }
+    .stock-card-stats b { font-weight: 700; }
+    .stock-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stock-card-actions button { width: 100%; padding: 11px 8px; font-size: 13px; }
+    .stock-card-actions .delete-link { grid-column: 1 / -1; text-align: center; padding: 8px; }
+  }
 
   .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
   .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
@@ -558,10 +581,11 @@
               <option value="all">All</option>
             </select>
           </div>
-          <table>
+          <table class="stock-table-desktop">
             <thead><tr><th>Product</th><th>Batch</th><th>Made on</th><th>Allocated here</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
             <tbody id="stockTable"><tr class="empty-row"><td colspan="8">Select a fridge above</td></tr></tbody>
           </table>
+          <div id="stockCardsMobile" class="stock-cards-mobile"></div>
           <div class="stock-legend"><span style="color:var(--accent)">■</span> available &nbsp; <span style="color:var(--cta)">■</span> held (in someone's cart)</div>
           <div class="field-note">"Allocated here" is the running total ever assigned to this fridge for this batch — it doesn't change from manual corrections. Use "Manual sale" for units sold via the backup bank QR and "Vending sale" for units sold through a vending machine (both real revenue, not waste), and "Close out" at the end of each day to record whatever's genuinely left as waste.</div>
         </div>
@@ -649,8 +673,10 @@
       <!-- FRIDGE FEEDBACK VIEW -->
       <div id="feedbackFridgeView">
         <div class="page-sub">From the feedback QR — name is required, everything else is optional.
-          <button class="qr-btn" style="margin-left:8px" onclick="openGenericFeedbackQr()">Print a general feedback QR</button>
-          — or use each fridge's own "Feedback QR" button in the Fridges tab for location-specific ones.
+          <span class="feedback-qr-admin-only">
+            <button class="qr-btn" style="margin-left:8px" onclick="openGenericFeedbackQr()">Print a general feedback QR</button>
+            — or use each fridge's own "Feedback QR" button in the Fridges tab for location-specific ones.
+          </span>
         </div>
 
         <div class="stats-grid">
@@ -680,7 +706,7 @@
       <div id="feedbackDeliveryView" class="hidden">
         <div class="page-sub">From the Swiggy/Zomato order feedback link — name and phone are both required, everything else is optional.</div>
 
-        <div class="card" style="margin-bottom:20px">
+        <div class="card feedback-qr-admin-only" style="margin-bottom:20px">
           <h3>Print a feedback QR</h3>
           <div class="field-note" style="margin-top:0">Pick a kitchen/location you've already made a QR for to reprint the exact same one, add a new one, or leave it generic.</div>
           <select id="deliveryQrLocationSelect" onchange="onQrLocationChange('delivery')">
@@ -713,7 +739,7 @@
       <div id="feedbackSubscriptionView" class="hidden">
         <div class="page-sub">From the subscription feedback link — name is required, everything else is optional.</div>
 
-        <div class="card" style="margin-bottom:20px">
+        <div class="card feedback-qr-admin-only" style="margin-bottom:20px">
           <h3>Print a feedback QR</h3>
           <div class="field-note" style="margin-top:0">Pick a kitchen/location you've already made a QR for to reprint the exact same one, add a new one, or leave it generic.</div>
           <select id="subscriptionQrLocationSelect" onchange="onQrLocationChange('subscription')">
@@ -1021,11 +1047,17 @@ function enterDashboard() {
   document.getElementById('dashScreen').classList.add('active');
   document.getElementById('whoRole').textContent = '(' + state.role + ')';
   document.getElementById('whoName').textContent = state.role === 'ADMIN' ? 'Admin' : 'Kitchen staff';
+  // Feedback is visible to both roles — Kitchen can see ratings/reports,
+  // just not generate new QR codes (hidden separately within the tab).
+  // Everything else here stays ADMIN-only.
+  document.getElementById('feedbackNavItem').classList.remove('hidden');
+  if (state.role !== 'ADMIN') {
+    document.querySelectorAll('.feedback-qr-admin-only').forEach((el) => el.classList.add('hidden'));
+  }
   if (state.role === 'ADMIN') {
     document.getElementById('staffNavItem').classList.remove('hidden');
     document.getElementById('salesNavItem').classList.remove('hidden');
     document.getElementById('customersNavItem').classList.remove('hidden');
-    document.getElementById('feedbackNavItem').classList.remove('hidden');
     document.getElementById('profitabilityNavItem').classList.remove('hidden');
   }
   refreshAll();
@@ -1096,7 +1128,7 @@ function loadFridges() {
       '<tr><td>' + f.code + '</td><td>' + f.name + '</td><td>' + (f.location || '—') + '</td>' +
       '<td><span class="badge ' + (f.isActive ? 'badge-active">Active' : 'badge-inactive">Inactive') + '</span></td>' +
       '<td><button class="qr-btn" onclick="openFridgeQr(\'' + escQ(f.code) + '\', \'' + escQ(f.name) + '\')">QR</button> ' +
-      '<button class="qr-btn" onclick="openFeedbackQr(\'' + escQ(f.code) + '\', \'' + escQ(f.name) + '\')">Feedback QR</button> ' +
+      (state.role === 'ADMIN' ? '<button class="qr-btn" onclick="openFeedbackQr(\'' + escQ(f.code) + '\', \'' + escQ(f.name) + '\')">Feedback QR</button> ' : '') +
       '<button class="qr-btn" onclick="openEditModal(\'fridge\',\'' + f.id + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'fridge\',\'' + f.id + '\',\'' + escQ(f.name) + '\')">Delete</button></td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="5">No fridges yet</td></tr>';
@@ -1379,12 +1411,31 @@ function renderStockTable() {
   }
   rows.sort((a, b) => new Date(b.batch.manufacturedAt) - new Date(a.batch.manufacturedAt));
 
-  tbody.innerHTML = rows.length ? rows.map((r) => {
+  const computed = rows.map((r) => {
     const total = r.quantityAvailable + r.quantityHeld || 1;
     const availPct = Math.round((r.quantityAvailable / total) * 100);
     const closeOutDisabled = r.quantityAvailable === 0 ? 'disabled title="Nothing left to close out"' : '';
     const manualSaleDisabled = r.quantityAvailable === 0 ? 'disabled title="Nothing available to sell"' : '';
-    return '<tr><td>' + r.batch.product.name + '</td><td>' + r.batch.batchCode + '</td>' +
+
+    // Sold + Wasted + Available + Held should never exceed Allocated —
+    // if it does, something (usually a manual correction) made the
+    // numbers mathematically impossible. This only flags it for a human
+    // to look at; it doesn't block or auto-correct anything.
+    const accountedFor = r.quantitySold + r.quantityWasted + r.quantityAvailable + r.quantityHeld;
+    const mismatch = accountedFor > r.quantityAllocated;
+    const mismatchTitle = 'Sold (' + r.quantitySold + ') + Wasted (' + r.quantityWasted + ') + Available (' + r.quantityAvailable + ') + Held (' + r.quantityHeld + ') = ' + accountedFor + ', which is more than the ' + r.quantityAllocated + ' ever allocated. Worth checking, likely a manual correction that does not reconcile.';
+
+    return { r, availPct, closeOutDisabled, manualSaleDisabled, mismatch, mismatchTitle };
+  });
+
+  const emptyMessage = mode === 'live-today' ? 'Nothing live today — try "All" or "Closed out"' :
+    mode === 'closed-out' ? 'Nothing closed out yet' : 'No stock allocated at this fridge yet';
+
+  tbody.innerHTML = computed.length ? computed.map(({ r, availPct, closeOutDisabled, manualSaleDisabled, mismatch, mismatchTitle }) => {
+    const mismatchBadge = mismatch
+      ? ' <span class="badge" style="background:#FFF3E0;color:#B8600A;" title="' + mismatchTitle + '">⚠ check</span>'
+      : '';
+    return '<tr' + (mismatch ? ' style="background:#FFFBF5"' : '') + '><td>' + r.batch.product.name + mismatchBadge + '</td><td>' + r.batch.batchCode + '</td>' +
       '<td>' + new Date(r.batch.manufacturedAt).toLocaleDateString() + '</td>' +
       '<td>' + r.quantityAllocated + '</td>' +
       '<td><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
@@ -1396,10 +1447,29 @@ function renderStockTable() {
       '<button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button> ' +
       '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
-  }).join('') : '<tr class="empty-row"><td colspan="8">' + (
-    mode === 'live-today' ? 'Nothing live today — try "All" or "Closed out"' :
-    mode === 'closed-out' ? 'Nothing closed out yet' : 'No stock allocated at this fridge yet'
-  ) + '</td></tr>';
+  }).join('') : '<tr class="empty-row"><td colspan="8">' + emptyMessage + '</td></tr>';
+
+  // Same data, laid out as tap-friendly cards for the mobile view (CSS
+  // shows only one of the two — see the max-width:768px block).
+  const cardsContainer = document.getElementById('stockCardsMobile');
+  cardsContainer.innerHTML = computed.length ? computed.map(({ r, availPct, closeOutDisabled, manualSaleDisabled, mismatch, mismatchTitle }) => {
+    const mismatchBadge = mismatch
+      ? '<span class="badge" style="background:#FFF3E0;color:#B8600A;" title="' + mismatchTitle + '">⚠ check</span>'
+      : '';
+    return '<div class="stock-card' + (mismatch ? ' mismatch' : '') + '">' +
+      '<div class="stock-card-top"><div class="stock-card-name">' + r.batch.product.name + '</div>' + mismatchBadge + '</div>' +
+      '<div class="stock-card-sub">' + r.batch.batchCode + ' · Made ' + new Date(r.batch.manufacturedAt).toLocaleDateString() + '</div>' +
+      '<div class="stock-card-bar-wrap"><div class="stock-bar"><div class="seg-avail" style="width:' + availPct + '%"></div><div class="seg-held" style="width:' + (100 - availPct) + '%"></div></div>' +
+      '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></div>' +
+      '<div class="stock-card-stats"><span>Allocated <b>' + r.quantityAllocated + '</b></span><span>Sold <b>' + r.quantitySold + '</b></span><span>Wasted <b>' + r.quantityWasted + '</b></span></div>' +
+      '<div class="stock-card-actions">' +
+      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordManualSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Manual sale</button>' +
+      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordVendingSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Vending sale</button>' +
+      '<button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button>' +
+      '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button>' +
+      '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button>' +
+      '</div></div>';
+  }).join('') : '<div class="empty-row" style="padding:20px;text-align:center;color:var(--body)">' + emptyMessage + '</div>';
 }
 
 // Records a sale made off-system — via the backup bank/UPI QR when
@@ -1780,6 +1850,7 @@ const EDIT_CONFIGS = {
   ],
   batch: (b) => [
     { key: 'status', label: 'Status', type: 'select', value: b.status, options: [['ACTIVE', 'Active'], ['EXPIRED', 'Expired'], ['RECALLED', 'Recalled']] },
+    { key: 'totalQuantity', label: 'Total quantity made (correcting this after some has already been allocated to fridges may make "available to assign" negative — that\'s expected, it just means more was already given out than the corrected total)', type: 'number', value: b.totalQuantity },
   ],
   stock: (s) => [
     { key: 'quantityAvailable', label: 'Available quantity', type: 'number', value: s.quantityAvailable },
