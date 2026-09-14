@@ -3,7 +3,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { ApiError } from "../../utils/apiError";
 
-const SESSION_TTL_MS = env.SESSION_TTL_MINUTES * 60 * 1000;
+const SESSION_TTL_MS = env.SESSION_TTL_SECONDS * 1000;
 
 // ── Create session (fires the moment the customer opens the app for a fridge) ─
 export const createSession = async (fridgeCode: string) => {

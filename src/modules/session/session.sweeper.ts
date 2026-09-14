@@ -1,7 +1,7 @@
 import { prisma } from "../../config/prisma";
 import { expireSession } from "./session.service";
 
-const SWEEP_INTERVAL_MS = 60 * 1000; // every minute
+const SWEEP_INTERVAL_MS = 15 * 1000; // every 15s — was 60s, but that added up to a full extra minute of delay on top of the TTL itself, which mattered a lot less back when the TTL was 10 minutes than it does now that it's 45 seconds
 
 export const startSessionSweeper = () => {
   const run = async () => {

@@ -282,18 +282,26 @@
     }
     .thermal-label .tl-text { flex: 1; min-width: 0; padding-right: 1mm; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
     .thermal-label .tl-name {
-      font-size: 3.2mm; font-weight: 700; line-height: 1.05; margin-bottom: 0.5mm;
+      font-size: 2.9mm; font-weight: 700; line-height: 1.05; margin-bottom: 0.4mm;
       word-break: break-word; overflow: hidden; display: -webkit-box;
       -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
-    .thermal-label .tl-line { font-size: 2.3mm; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+    .thermal-label .tl-line { font-size: 2.1mm; font-weight: 700; line-height: 1.15; white-space: nowrap; }
+    /* A real print came back with weight completely missing — "Exp
+       28/08 6:30 PM · 180g" was wider than the space actually available
+       (confirmed both by character-width math and a true-size render:
+       the " · 180g" portion was being silently clipped off entirely by
+       the parent's overflow:hidden, with no visible sign anything was
+       missing). Combining weight with Price instead was tried too and
+       hit the identical problem. Weight now gets its own small line —
+       there was plenty of unused vertical space once the horizontal
+       overflow was the actual constraint, not height. */
+    .thermal-label .tl-weight-line { font-size: 1.9mm; font-weight: 700; line-height: 1.15; white-space: nowrap; color: #333; }
     /* Price gets its own bigger/bolder treatment, separate from the plain
        Mfg/Exp detail lines — it's the one number a customer paying
        manually via the backup bank QR actually needs to act on, so it
-       should be the most prominent line after the item name. Weight/
-       volume moved onto the Exp line to give this one room to be big
-       without the two competing for width on the same line. */
-    .thermal-label .tl-price-line { font-size: 2.8mm; font-weight: 800; line-height: 1.25; white-space: nowrap; margin: 0.3mm 0; }
+       should be the most prominent line after the item name. */
+    .thermal-label .tl-price-line { font-size: 2.6mm; font-weight: 800; line-height: 1.2; white-space: nowrap; margin: 0.2mm 0; }
     /* QR + code stacked in their own column, code centered directly under
        the QR — same visual convention as a "SCAN HERE" caption under a QR,
        just with the actual batch code there instead. The column is
@@ -933,12 +941,20 @@ function forceReLogin(message) {
 // once, so an admin mid-task never loses form input to a surprise logout.
 // Only a truly dead session (refresh token itself expired, ~30 days, or
 // revoked by a logout) falls through to forcing a real re-login.
+//
+// Login and bootstrap are deliberately excluded from this — a 401 from
+// either of those means "wrong phone/password," not "your access token
+// expired" (there isn't one yet at that point), so it should surface as
+// a normal login error, not trigger a refresh attempt against whatever
+// stale leftover refresh token might still be sitting in sessionStorage
+// from a previous session.
 function api(path, opts = {}, isRetry) {
+  const isAuthEntryPoint = path === '/auth/login' || path === '/auth/bootstrap-admin';
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (state.accessToken) headers['Authorization'] = 'Bearer ' + state.accessToken;
   return fetch('/api' + path, Object.assign({}, opts, { headers }))
     .then(async (res) => {
-      if (res.status === 401 && !isRetry) {
+      if (res.status === 401 && !isRetry && !isAuthEntryPoint) {
         return doSilentRefresh()
           .then(() => api(path, opts, true))
           .catch(() => {
@@ -1598,23 +1614,28 @@ function printQrSheet() {
     // and has to pay manually (bank QR) should actually pay, matching
     // what the app itself would charge. Printing MRP here would have
     // silently overcharged anyone using that fallback. "Price" (not
-    // "Pay") is deliberately its own bold/bigger line — weight or
-    // volume gets folded onto the Exp line instead of sharing this one,
-    // so Price has room to be the most prominent number on the label
-    // after the item name.
+    // "Pay") is deliberately its own bold/bigger line.
+    //
+    // Weight/volume gets its own small line, not combined with Exp or
+    // Price — a real printed label came back with weight completely
+    // missing because "Exp <date+time> · <weight>" was wider than the
+    // space actually available and got silently clipped off entirely.
+    // Combining it with Price instead hit the identical problem. There
+    // was plenty of unused vertical space once that was the real
+    // constraint, not height, so a 5th line was the fix.
     const priceValue = Number(b.product.sellingPrice).toFixed(0);
     const priceLine = '<div class="tl-price-line">Price ₹' + priceValue + '</div>';
-    const expParts = ['Exp ' + formatLabelDateTime(b.expiresAt)];
-    if (b.product.weightGrams) expParts.push(b.product.weightGrams + 'g');
-    else if (b.product.volumeMl) expParts.push(b.product.volumeMl + 'ml');
-    const expLine = '<div class="tl-line">' + expParts.join(' · ') + '</div>';
+    let weightLine = '';
+    if (b.product.weightGrams) weightLine = '<div class="tl-weight-line">' + b.product.weightGrams + 'g</div>';
+    else if (b.product.volumeMl) weightLine = '<div class="tl-weight-line">' + b.product.volumeMl + 'ml</div>';
     labelHtml =
       '<div class="thermal-label">' +
         '<div class="tl-text">' +
           '<div class="tl-name">' + b.product.name + '</div>' +
           '<div class="tl-line">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div>' +
           priceLine +
-          expLine +
+          '<div class="tl-line">Exp ' + formatLabelDateTime(b.expiresAt) + '</div>' +
+          weightLine +
         '</div>' +
         '<div class="tl-qr-col">' +
           '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +

@@ -14,7 +14,16 @@ const envSchema = z.object({
   OTP_EXPIRES_IN_MINUTES: z.coerce.number().default(5),
   OTP_MAX_ATTEMPTS: z.coerce.number().default(5),
 
-  SESSION_TTL_MINUTES: z.coerce.number().default(10),
+  // Renamed from SESSION_TTL_MINUTES — a scanned-but-abandoned item was
+  // staying "held" (unavailable to the next customer) for up to 10
+  // minutes, which was long enough to be a real problem when someone
+  // scanned an item, decided against it, and put it back within
+  // moments. 45s is short enough to release quickly but long enough
+  // that comparing two items or reading nutrition info before deciding
+  // doesn't release your own held item out from under you while you're
+  // still actively shopping. A completed checkout is unaffected by
+  // this value regardless of how short it is — see session.sweeper.ts.
+  SESSION_TTL_SECONDS: z.coerce.number().default(45),
 
   // One-time secret to create the very first ADMIN account via
   // POST /api/auth/bootstrap-admin. Set this in Railway, use it once, then

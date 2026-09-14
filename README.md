@@ -130,6 +130,23 @@ logged out) falls through to a real re-login prompt. Logging out now
 also calls `POST /api/auth/logout` to revoke that device's refresh token
 server-side, not just forget it locally.
 
+**`/auth/login` and `/auth/bootstrap-admin` are deliberately excluded**
+from the silent-refresh logic above — a real bug had a wrong-password
+login attempt trigger the *exact same* "your session expired" alert and
+forced reload as an actually-expired session, which was confusing and
+wrong: a 401 from either of those two endpoints means "incorrect
+credentials," not "your access token needs refreshing" (there isn't one
+yet at that point in the flow). What was actually happening: the login
+attempt's 401 got intercepted by the generic retry logic, which tried
+to silently refresh using whatever leftover refresh token happened to
+still be sitting in `sessionStorage` from a previous session, that
+attempt failed too (nothing to refresh against), and *that* failure is
+what triggered the scary alert — masking the real "wrong password"
+message the person should have seen instead. `api()` now checks the
+request path and skips the refresh-retry branch entirely for these two
+endpoints, letting a real credentials error surface normally on the
+login form.
+
 **Multiple devices logged in at once was already supported** and still
 is — logging in issues a new refresh token without revoking any other
 device's existing one (each login just adds a row to `RefreshToken`), so
@@ -267,17 +284,36 @@ GET    /api/admin/profitability       ADMIN only — ?from&to (required) — the
 
 - No session-per-user dedupe (there's no user to dedupe on) — every
   `POST /api/sessions` call creates a fresh cart.
-- Session expires after `SESSION_TTL_MINUTES` (default **10**, changed
-  from 20) of inactivity; each scan resets the clock. A background
-  sweeper (`session.sweeper.ts`, runs every 60s) reaps stale sessions
-  and, critically, **releases their held stock back to `quantityAvailable`**
-  — this is the answer to "what happens to an abandoned cart": if someone
-  scans an item and never checks out, that item goes back to being
-  purchasable by someone else after ~10 minutes of inactivity, same as it
-  would if they'd never picked it up. Note: if this was already deployed
-  with `SESSION_TTL_MINUTES` set explicitly in Railway's Variables, that
-  value overrides this code default — update it there too if you want the
-  shorter window live.
+- Session expires after `SESSION_TTL_SECONDS` (default **45**, renamed
+  from `SESSION_TTL_MINUTES` when the default dropped from 10 minutes —
+  a name still in minutes stopped making sense at this duration) of
+  inactivity; each scan resets the clock. A background sweeper
+  (`session.sweeper.ts`, runs every 15s — also shortened, from 60s, so
+  the sweep interval doesn't eat up a big chunk of a now much shorter
+  TTL) reaps stale sessions and, critically, **releases their held
+  stock back to `quantityAvailable`** — this is the answer to "what
+  happens to an abandoned cart": if someone scans an item and never
+  checks out, that item goes back to being purchasable by someone else
+  within about a minute, not the up-to-11-minutes an earlier 10-minute
+  default allowed (scan-and-immediately-abandon blocking the next
+  customer from buying an item that's physically just sitting right
+  there was a real reported problem, not a hypothetical one). 45s
+  specifically avoids being *so* short that comparing two items or
+  reading nutrition info before deciding releases your own held item
+  while you're still actively shopping — a literal 10-20s window was
+  considered and rejected for exactly that reason.
+
+  **A completed checkout is unaffected by this value no matter how
+  short it is** — `checkout()` flips the session's `status` from
+  `ACTIVE` to `CHECKED_OUT` before the Razorpay popup ever opens, and
+  the sweeper's query only ever matches `status: "ACTIVE"` sessions.
+  There's no dependence on `expiresAt` surviving long enough to cover
+  an actual payment.
+
+  Note: if this was already deployed with `SESSION_TTL_MINUTES` set
+  explicitly in Railway's Variables, that variable is simply unused
+  now — add `SESSION_TTL_SECONDS` there instead (or leave it unset to
+  use the 45s code default) and remove the old one.
 - Checkout is idempotent per session — re-hitting checkout on an already
   `PENDING` order returns the same order instead of creating a duplicate.
   Checkout requires `name` and `phone` in the body (phone validated as a
@@ -861,7 +897,20 @@ the way it will at a space.
 - "Pay ₹X" became "Price ₹X", split onto its own bold/bigger line
   (`.tl-price-line`, distinct from the plain `.tl-line` class Mfg/Exp
   use) so it's the most prominent number on the label after the item
-  name. Weight/volume moved onto the Exp line to free up room for this.
+  name.
+- **Weight/volume gets its own small dedicated line** (`.tl-weight-line`)
+  — not combined with Exp, and not combined with Price either. Both
+  combinations were tried first and both genuinely shipped: a real
+  printed label came back with weight missing entirely, because
+  "Exp `<date+time>` · `<weight>`" was wider than the space actually
+  available once the QR column grew, and the overflow was being
+  silently clipped by `overflow: hidden` with no visible sign anything
+  was missing — confirmed by both character-width math and a true-size
+  render reproducing the exact same line. Combining weight with Price
+  instead hit the identical problem at the bigger font. There was
+  plenty of unused vertical space once the real constraint turned out
+  to be horizontal, not height, so weight now gets its own line instead
+  of fighting either of the other two for width.
 
 All of the above was verified the same way as previous label
 changes — rendered at true physical size, margins measured precisely
