@@ -263,6 +263,8 @@
   }
   .qr-modal-card {
     background: var(--white); border-radius: 20px; padding: 28px; width: 100%; max-width: 360px; text-align: center;
+    max-height: 88vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .qr-modal-card h3 { font-size: 16px; margin: 0 0 4px; }
   .qr-modal-sub { font-size: 12px; color: var(--body); margin-bottom: 18px; word-break: break-all; }
@@ -275,6 +277,8 @@
 
   .edit-modal-card {
     background: var(--white); border-radius: 20px; padding: 26px; width: 100%; max-width: 400px; text-align: left;
+    max-height: 88vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .edit-modal-card h3 { font-size: 16px; margin: 0 0 6px; }
   .edit-modal-card label:first-of-type { margin-top: 6px; }
@@ -974,7 +978,7 @@ function forceReLogin(message) {
 // a normal login error, not trigger a refresh attempt against whatever
 // stale leftover refresh token might still be sitting in sessionStorage
 // from a previous session.
-function api(path, opts = {}, isRetry) {
+function api(path, opts = {}, isRetry, isNetworkRetry) {
   const isAuthEntryPoint = path === '/auth/login' || path === '/auth/bootstrap-admin';
   const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (state.accessToken) headers['Authorization'] = 'Bearer ' + state.accessToken;
@@ -991,6 +995,28 @@ function api(path, opts = {}, isRetry) {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((body.error && body.error.message) || 'Request failed');
       return body;
+    })
+    .catch((err) => {
+      // A network-level failure — fetch() itself rejecting because no
+      // response was ever received at all (Safari surfaces this as
+      // "Load failed", Chrome as "Failed to fetch") — is a different
+      // problem from a clean HTTP error response, which already has its
+      // own message via the throw above. Browsers raise this specific
+      // kind of failure as a TypeError, which is how it's told apart
+      // from an explicit business-logic throw (a plain Error) so a real
+      // validation error never gets treated as a connection blip and
+      // silently retried. One retry after a brief pause, since a mobile
+      // connection especially can have a one-off drop that a second
+      // attempt sails straight through.
+      const isNetworkFailure = err instanceof TypeError;
+      if (isNetworkFailure && !isNetworkRetry) {
+        return new Promise((resolve) => setTimeout(resolve, 800))
+          .then(() => api(path, opts, isRetry, true));
+      }
+      if (isNetworkFailure) {
+        throw new Error('Could not reach the server — check your connection and try again.');
+      }
+      throw err;
     });
 }
 
@@ -1938,7 +1964,16 @@ function submitEdit() {
     if (f.type === 'image') { body[f.key] = pendingEditImage || undefined; return; }
     const el = document.getElementById('edit_' + f.key);
     if (f.type === 'checkbox') body[f.key] = el.checked;
-    else if (f.type === 'number') body[f.key] = parseFloat(el.value);
+    else if (f.type === 'number') {
+      // A blank optional field (e.g. Weight left empty) parses to NaN,
+      // which JSON.stringify silently turns into null — the server's
+      // validation schema expects the field left out entirely for "not
+      // set", not an explicit null, and rejects null with a confusing
+      // "Invalid request" error. Sending undefined (which JSON.stringify
+      // correctly omits) matches what "optional" actually means here.
+      const n = parseFloat(el.value);
+      body[f.key] = isNaN(n) ? undefined : n;
+    }
     else body[f.key] = el.value;
   });
 

@@ -963,6 +963,78 @@ total for the period (uncategorized expenses group under
 "Uncategorized" rather than being dropped) — so the statement shows
 what expenses actually consist of, not one opaque lump sum.
 
+## Mobile grid layout — a real pre-existing bug, not just Stock
+
+While building a mobile-friendly Stock tab (below), found that the base
+`.grid`/`.grid-2` rules (the two-column "form on left, table on right"
+layout used by nearly every tab — Fridges, Batches, Products, Stock)
+were declared **after** their mobile media-query override in the
+stylesheet. Since CSS resolves equal-specificity ties by source order
+regardless of which rule is inside a media query, the unconditional
+desktop rule (`340px 1fr`) was winning even at phone widths, squeezing
+the second column down to a sliver instead of collapsing to one column
+as the media query intended. This wasn't a Stock-specific issue — every
+tab using `.grid` was affected. Fixed by moving the base rule before the
+media query. Verified on two different tabs (Stock and Fridges) at
+phone width, and confirmed desktop is pixel-identical to before at
+laptop width.
+
+## Stock tab on mobile — cards instead of a table
+
+The Stock tab is what gets used from a phone most often — standing at
+the fridge, checking or correcting stock. An 8-column table with 4
+action buttons per row doesn't work as a horizontally-scrolling table
+on a phone screen. Below the same `768px` breakpoint used elsewhere,
+the table (`.stock-table-desktop`) is hidden and a card layout
+(`#stockCardsMobile`) takes over instead — one card per stock row,
+product name and a match-check badge (see below) up top, batch code
+and date, the same available/held bar, a compact Allocated/Sold/Wasted
+line, then all the actions (Manual sale, Vending sale, Close out, Edit,
+Delete) as full-width, easy-to-tap buttons in a 2-column grid. Both the
+table and the cards are built from the same computed row data in
+`renderStockTable()` in one pass, so the mismatch-detection logic (next
+section) only exists in one place rather than being duplicated between
+the two layouts.
+
+## A visible warning when Sold + Wasted + Available + Held doesn't add up
+
+Reported directly: a stock row showing `Allocated: 2, Sold: 2, Wasted:
+1` — mathematically impossible, since that's 3 units accounted for out
+of only 2ever allocated. There wasn't previously any validation
+anywhere (not in the automatic sale/close-out flow, not in the manual
+quantity-correction Edit form) ensuring
+`Sold + Wasted + Available + Held <= Allocated`. Rather than guess at
+the exact historical sequence that produced one specific bad row, or
+add blocking validation that could get in the way of a legitimate but
+unusual correction, this adds a purely visual warning: any row where
+the numbers don't reconcile gets a `⚠ check` badge (hover/tap for the
+exact math) and a subtle highlight, on both the desktop table and the
+mobile cards. It doesn't block or auto-correct anything — it just makes
+a row worth checking impossible to miss instead of sitting there
+silently wrong.
+
+## Batch total quantity is now correctable
+
+`updateBatchStatus` (status only) became `updateBatch` (status and/or
+`totalQuantity`) — there was no way to fix a mistyped total production
+count after the fact. The Edit modal for a batch now has both fields.
+Correcting `totalQuantity` down below what's already been allocated to
+fridges is allowed — it just means "available to assign" for that batch
+can go negative, which is accurate information (more was already given
+out than the corrected total), not an error state to prevent.
+
+## Kitchen can see Feedback ratings, but not generate QR codes
+
+The Feedback tab (ratings, reports, submissions across all three
+audiences) was ADMIN-only; now both ADMIN and KITCHEN can view it —
+`GET /api/admin/feedback`, `/stats`, and the subscription-feedback
+equivalents all now accept either role. Generating a new (or
+reprinting an existing) feedback QR stays ADMIN-only, both server-side
+(`POST /api/admin/qr-locations` and its `GET` still require ADMIN) and
+in the dashboard — the "Print a feedback QR" cards in all three
+Feedback views, and the per-fridge "Feedback QR" button in the Fridges
+tab, are hidden entirely for KITCHEN rather than shown-then-blocked.
+
 ## Not in Phase 1 (next phases, on request)
 
 - Kitchen/admin console beyond what's in `/admin` today
