@@ -414,6 +414,18 @@ router.get(
   })
 );
 
+// One-time catch-up for batches that predate a product's cost price —
+// see admin.service.ts backfillBatchCosts for the full rationale. Safe
+// to run more than once; it only ever fills in a batch that's still
+// missing a cost, never touches one that already has a real snapshot.
+router.post(
+  "/products/backfill-costs",
+  requireRole("ADMIN"),
+  asyncHandler(async (req, res) => {
+    res.status(200).json(await adminService.backfillBatchCosts(req.user!.sub));
+  })
+);
+
 // ── Profitability — ADMIN only ──────────────────────────────
 router.get(
   "/profitability",

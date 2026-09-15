@@ -747,6 +747,51 @@ export const deleteExpense = async (id: string) => {
 // Gross Margin% = Gross Profit ÷ Sales × 100
 // Net Profit    = Gross Profit − Expenses (the month-end layer above)
 //
+// One-time catch-up for existing batches that predate a product ever
+// having a cost price set — costPricePerUnit only ever gets snapshotted
+// onto a batch at the moment it's CREATED (createBatch), so setting a
+// cost price on a Product today does nothing for batches that already
+// exist; they'd show up as "missing cost" in getProfitability forever
+// otherwise. This fills that gap using each product's CURRENT cost
+// price, once, for whatever's missing right now. It never overwrites a
+// batch that already has costPricePerUnit set — that would rewrite a
+// real historical snapshot, which is exactly what the snapshot design
+// exists to prevent. Going forward, a weekly cost price change still
+// only affects batches created after that change, same as always —
+// this only ever closes the gap for batches that never got a snapshot
+// in the first place.
+export const backfillBatchCosts = async (actorId: string) => {
+  const productsWithCost = await prisma.product.findMany({ where: { costPrice: { not: null } } });
+
+  let updatedCount = 0;
+  const perProduct: { productId: string; productName: string; updated: number }[] = [];
+
+  for (const product of productsWithCost) {
+    const result = await prisma.batch.updateMany({
+      where: { productId: product.id, costPricePerUnit: null },
+      data: { costPricePerUnit: product.costPrice },
+    });
+    if (result.count > 0) {
+      updatedCount += result.count;
+      perProduct.push({ productId: product.id, productName: product.name, updated: result.count });
+    }
+  }
+
+  if (updatedCount > 0) {
+    await prisma.auditLog.create({
+      data: {
+        actorId,
+        action: "BATCH_COSTS_BACKFILLED",
+        entityType: "Batch",
+        entityId: "bulk",
+        metadata: { updatedCount, perProduct },
+      },
+    });
+  }
+
+  return { updatedCount, perProduct };
+};
+
 // Sales and Refunds are both anchored to the order's paidAt — a sale and
 // its later refund stay together in the same report period rather than
 // splitting across two. Wastage is anchored to the batch's manufacturedAt

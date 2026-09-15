@@ -805,6 +805,7 @@
             <tr class="total-row"><td>Net Profit</td><td id="pfNetProfit" class="amt">—</td></tr>
           </table>
           <div id="pfIncompleteNote" class="field-note hidden"></div>
+          <button class="qr-btn hidden" id="pfBackfillBtn" style="margin-top:10px" onclick="backfillBatchCosts()">Backfill missing costs now</button>
         </div>
 
         <div class="card">
@@ -2097,6 +2098,33 @@ function ensureDefaultProfitDates() {
   }
 }
 
+// One-time catch-up for batches created before their product ever had a
+// cost price set — new batches already pick up the product's current
+// cost price automatically at creation, this only ever fixes the gap
+// for batches that predate that. Safe to run more than once: it never
+// touches a batch that already has a cost price snapshotted.
+function backfillBatchCosts() {
+  const btn = document.getElementById('pfBackfillBtn');
+  btn.disabled = true;
+  btn.textContent = 'Backfilling…';
+  api('/admin/products/backfill-costs', { method: 'POST' })
+    .then((result) => {
+      btn.disabled = false;
+      btn.textContent = 'Backfill missing costs now';
+      if (result.updatedCount > 0) {
+        alert('Set a cost price on ' + result.updatedCount + ' batch(es) across ' + result.perProduct.length + ' product(s). Profitability numbers below are now updated.');
+      } else {
+        alert('Nothing to backfill — either every batch already has a cost price, or none of your products have one set yet.');
+      }
+      loadProfitability();
+    })
+    .catch((e) => {
+      btn.disabled = false;
+      btn.textContent = 'Backfill missing costs now';
+      alert(e.message);
+    });
+}
+
 function loadProfitability() {
   ensureDefaultProfitDates();
   const from = toStartOfDayISO(document.getElementById('profitFrom').value);
@@ -2121,14 +2149,17 @@ function loadProfitability() {
     )).join('');
 
     const note = document.getElementById('pfIncompleteNote');
+    const backfillBtn = document.getElementById('pfBackfillBtn');
     if (p.itemsMissingCost > 0 || p.wastedUnitsMissingCost > 0) {
       const parts = [];
       if (p.itemsMissingCost > 0) parts.push(p.itemsMissingCost + ' sold unit(s)');
       if (p.wastedUnitsMissingCost > 0) parts.push(p.wastedUnitsMissingCost + ' wasted unit(s)');
-      note.textContent = '⚠️ COGS/wastage cost above is incomplete — ' + parts.join(' and ') + ' had no cost price set on their product at the time, so they\'re excluded rather than assumed free. Set a cost price in the Products tab to fix this going forward.';
+      note.textContent = '⚠️ COGS/wastage cost above is incomplete — ' + parts.join(' and ') + ' had no cost price set on their product at the time, so they\'re excluded rather than assumed free. If you\'ve since set a cost price on the product, use the button below to backfill it onto these existing batches — new batches already pick up a cost price automatically going forward.';
       note.classList.remove('hidden');
+      backfillBtn.classList.remove('hidden');
     } else {
       note.classList.add('hidden');
+      backfillBtn.classList.add('hidden');
     }
   }).catch(() => {});
 

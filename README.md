@@ -788,6 +788,28 @@ correct one. Set a cost price in the Products tab to fix this going
 forward — it doesn't retroactively fix past batches, since those already
 have their own (missing) snapshot.
 
+**Backfilling existing batches after setting a cost price for the first
+time.** Setting `Product.costPrice` only affects batches created *after*
+that point — it does nothing for batches that already exist, since
+their `costPricePerUnit` was already snapshotted as null at creation
+time (or never touched at all, if they predate the cost-tracking feature
+entirely). Left alone, those batches would show up as "missing cost"
+forever, even after the product has a cost price. The **"Backfill
+missing costs now"** button next to the warning note
+(`POST /api/admin/products/backfill-costs`) is a one-time catch-up for
+exactly this: for every product that currently has a cost price, it
+fills in `costPricePerUnit` on any of that product's batches that don't
+have one yet, using the product's current cost. It's safe to run
+repeatedly — it only ever fills in a batch that's still missing a cost,
+never overwrites one that already has a real snapshot from its own
+creation time, so it can't rewrite genuine history. This is a deliberate
+one-time-per-gap action, not a standing behavior change: a batch created
+*after* running this still gets its cost the normal way (snapshotted
+automatically at creation), and a future weekly cost price update still
+only affects batches created after that change — past COGS stays exactly
+as computed, which is the whole point of snapshotting in the first
+place.
+
 **Refunds are a manual record, not a live payment reversal.** There's no
 Razorpay refund API integration — `POST /api/admin/orders/:id/refund`
 just records that a refund happened (amount, capped at the order total)
