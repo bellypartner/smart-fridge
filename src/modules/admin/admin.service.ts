@@ -2,6 +2,14 @@ import { prisma } from "../../config/prisma";
 import { ApiError } from "../../utils/apiError";
 import { buildBatchCode } from "../../utils/batchCode";
 
+// Server timezone isn't guaranteed (Railway containers default to UTC) —
+// this business is India-only, so compute IST explicitly via UTC
+// arithmetic rather than relying on the server process's local time.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+function toIST(date: Date): Date {
+  return new Date(date.getTime() + IST_OFFSET_MS);
+}
+
 // ── Categories ───────────────────────────────────────────────
 export const createCategory = async (name: string) => {
   const existing = await prisma.category.findUnique({ where: { name } });
@@ -814,11 +822,11 @@ export const getAnalytics = async (from: Date, to: Date) => {
   // Revenue by day — a quick trend view across the selected range.
   const dailyMap = new Map<string, number>();
   for (const o of orders) {
-    const day = (o.paidAt ?? o.createdAt).toISOString().slice(0, 10);
+    const day = toIST(o.paidAt ?? o.createdAt).toISOString().slice(0, 10);
     dailyMap.set(day, (dailyMap.get(day) ?? 0) + Number(o.totalAmount));
   }
   for (const m of manualSales) {
-    const day = m.recordedAt.toISOString().slice(0, 10);
+    const day = toIST(m.recordedAt).toISOString().slice(0, 10);
     dailyMap.set(day, (dailyMap.get(day) ?? 0) + Number(m.totalAmount));
   }
   const dailyRevenue = Array.from(dailyMap.entries())
@@ -855,7 +863,7 @@ export const getAnalytics = async (from: Date, to: Date) => {
   // happened the way an app order's paidAt does).
   const hourCounts = new Array(24).fill(0);
   for (const o of orders) {
-    if (o.paidAt) hourCounts[o.paidAt.getHours()]++;
+    if (o.paidAt) hourCounts[toIST(o.paidAt).getUTCHours()]++;
   }
   const peakHours = hourCounts.map((orderCount, hour) => ({ hour, orderCount }));
 
