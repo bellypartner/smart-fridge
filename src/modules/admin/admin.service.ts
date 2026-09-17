@@ -792,6 +792,120 @@ export const backfillBatchCosts = async (actorId: string) => {
   return { updatedCount, perProduct };
 };
 
+// Analytics — a broader set of insights than Sales/Profitability cover,
+// all computed from data already being tracked (no new tracking added).
+// Same "fetch rows in range, aggregate in application code" approach as
+// getProfitability/getSalesStats — fine at pilot order volumes, revisit
+// with real SQL aggregation if volume grows a lot.
+//
+// "Sales" here means the same three channels Profitability already
+// combines — app orders, manual (bank QR), and vending — so a product or
+// fridge that sold well through the backup channels isn't invisible here.
+export const getAnalytics = async (from: Date, to: Date) => {
+  const orders = await prisma.order.findMany({
+    where: { status: { in: ["PAID", "REFUNDED"] }, paidAt: { gte: from, lte: to } },
+    include: { items: true, fridge: true },
+  });
+  const manualSales = await prisma.manualSale.findMany({
+    where: { recordedAt: { gte: from, lte: to } },
+    include: { batch: { include: { product: true } }, fridge: true },
+  });
+
+  // Revenue by day — a quick trend view across the selected range.
+  const dailyMap = new Map<string, number>();
+  for (const o of orders) {
+    const day = (o.paidAt ?? o.createdAt).toISOString().slice(0, 10);
+    dailyMap.set(day, (dailyMap.get(day) ?? 0) + Number(o.totalAmount));
+  }
+  for (const m of manualSales) {
+    const day = m.recordedAt.toISOString().slice(0, 10);
+    dailyMap.set(day, (dailyMap.get(day) ?? 0) + Number(m.totalAmount));
+  }
+  const dailyRevenue = Array.from(dailyMap.entries())
+    .map(([date, revenue]) => ({ date, revenue }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // What sold, by product — every item across every channel in range.
+  // This also backs the Sales tab's "items sold" report, not just the
+  // Analytics tab, so it's a full list (not capped to a top-N) with the
+  // caller deciding how much of it to show.
+  const productMap = new Map<string, { quantity: number; revenue: number }>();
+  for (const o of orders) {
+    for (const item of o.items) {
+      const cur = productMap.get(item.productNameSnapshot) ?? { quantity: 0, revenue: 0 };
+      cur.quantity += item.quantity;
+      cur.revenue += Number(item.unitPrice) * item.quantity;
+      productMap.set(item.productNameSnapshot, cur);
+    }
+  }
+  for (const m of manualSales) {
+    const name = m.batch.product.name;
+    const cur = productMap.get(name) ?? { quantity: 0, revenue: 0 };
+    cur.quantity += m.quantity;
+    cur.revenue += Number(m.totalAmount);
+    productMap.set(name, cur);
+  }
+  const productBreakdown = Array.from(productMap.entries())
+    .map(([productName, v]) => ({ productName, quantity: v.quantity, revenue: v.revenue }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Peak order hours — app orders only (manual/vending sales are entered
+  // after the fact, sometimes in a batch at close-out, so their
+  // recordedAt time doesn't reliably reflect when the sale itself
+  // happened the way an app order's paidAt does).
+  const hourCounts = new Array(24).fill(0);
+  for (const o of orders) {
+    if (o.paidAt) hourCounts[o.paidAt.getHours()]++;
+  }
+  const peakHours = hourCounts.map((orderCount, hour) => ({ hour, orderCount }));
+
+  // Waste rate per product — anchored to batch.manufacturedAt, same
+  // convention getProfitability uses for wastage (a batch is inherently
+  // one day's production, and FridgeStock.updatedAt can be bumped by an
+  // unrelated later correction so it isn't a reliable anchor instead).
+  const stockRows = await prisma.fridgeStock.findMany({
+    where: { batch: { manufacturedAt: { gte: from, lte: to } } },
+    include: { batch: { include: { product: true } } },
+  });
+  const wasteMap = new Map<string, { sold: number; wasted: number }>();
+  for (const row of stockRows) {
+    const name = row.batch.product.name;
+    const cur = wasteMap.get(name) ?? { sold: 0, wasted: 0 };
+    cur.sold += row.quantitySold;
+    cur.wasted += row.quantityWasted;
+    wasteMap.set(name, cur);
+  }
+  const wasteByProduct = Array.from(wasteMap.entries())
+    .map(([productName, v]) => ({
+      productName,
+      sold: v.sold,
+      wasted: v.wasted,
+      wasteRatePct: v.sold + v.wasted > 0 ? (v.wasted / (v.sold + v.wasted)) * 100 : 0,
+    }))
+    .filter((p) => p.wasted > 0)
+    .sort((a, b) => b.wasteRatePct - a.wasteRatePct);
+
+  // Revenue and order count per fridge — which locations are actually
+  // performing.
+  const fridgeMap = new Map<string, { revenue: number; orders: number }>();
+  for (const o of orders) {
+    const cur = fridgeMap.get(o.fridge.name) ?? { revenue: 0, orders: 0 };
+    cur.revenue += Number(o.totalAmount);
+    cur.orders += 1;
+    fridgeMap.set(o.fridge.name, cur);
+  }
+  for (const m of manualSales) {
+    const cur = fridgeMap.get(m.fridge.name) ?? { revenue: 0, orders: 0 };
+    cur.revenue += Number(m.totalAmount);
+    fridgeMap.set(m.fridge.name, cur);
+  }
+  const fridgeComparison = Array.from(fridgeMap.entries())
+    .map(([fridgeName, v]) => ({ fridgeName, revenue: v.revenue, orders: v.orders }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  return { dailyRevenue, productBreakdown, peakHours, wasteByProduct, fridgeComparison };
+};
+
 // Sales and Refunds are both anchored to the order's paidAt — a sale and
 // its later refund stay together in the same report period rather than
 // splitting across two. Wastage is anchored to the batch's manufacturedAt

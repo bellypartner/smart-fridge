@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import {
   allocateStockSchema,
+  analyticsQuerySchema,
   createBatchSchema,
   createCategorySchema,
   createExpenseSchema,
@@ -434,6 +435,17 @@ router.get(
   asyncHandler(async (req, res) => {
     const { from, to } = req.query as { from: string; to: string };
     res.status(200).json(await adminService.getProfitability(new Date(from), new Date(to)));
+  })
+);
+
+// ── Analytics — ADMIN only, same date-range shape as Profitability ──
+router.get(
+  "/analytics",
+  requireRole("ADMIN"),
+  validate(analyticsQuerySchema),
+  asyncHandler(async (req, res) => {
+    const { from, to } = req.query as { from: string; to: string };
+    res.status(200).json(await adminService.getAnalytics(new Date(from), new Date(to)));
   })
 );
 

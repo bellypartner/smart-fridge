@@ -222,6 +222,15 @@ export const profitabilityQuerySchema = z.object({
   }),
 });
 
+export const analyticsQuerySchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({}).optional(),
+  query: z.object({
+    from: z.string().datetime(),
+    to: z.string().datetime(),
+  }),
+});
+
 export const recordManualSaleSchema = z.object({
   body: z.object({
     batchId: z.string().min(1),

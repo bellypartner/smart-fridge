@@ -1057,6 +1057,59 @@ in the dashboard — the "Print a feedback QR" cards in all three
 Feedback views, and the per-fridge "Feedback QR" button in the Fridges
 tab, are hidden entirely for KITCHEN rather than shown-then-blocked.
 
+## Analytics — a broader set of insights than Sales/Profitability
+
+New `GET /api/admin/analytics?from=&to=` (ADMIN only, same date-range
+shape as Profitability) and a matching **Analytics** dashboard tab,
+built entirely from data already being tracked — no new tracking added.
+Like Profitability, "sales" here means all three channels combined (app
+orders, manual bank-QR, vending), so a fridge or product that does well
+through the backup channels isn't invisible.
+
+Returns, and the tab shows:
+- **Revenue by day** — a lightweight CSS bar chart (no charting library;
+  proportional-height bars with the exact value shown above each one and
+  in its hover title). Scrolls horizontally within its own card if the
+  range has more days than fit, rather than breaking the page layout —
+  same pattern already used for wide tables on mobile.
+- **What sold, all channels** — every product sold in range with
+  quantity and revenue, sorted by revenue. This is the same data the
+  Sales tab's "Items sold" section pulls from (see below), just shown in
+  full here rather than scoped to a single day.
+- **Peak order hours** — a bar chart of app-order count by hour, only
+  showing hours that actually had at least one order (so a quiet
+  overnight stretch doesn't pad the chart with empty bars). App orders
+  only, deliberately — manual/vending sales are often entered as a batch
+  at close-out, so their timestamp doesn't reliably reflect when the
+  sale itself happened the way an order's `paidAt` does.
+- **Highest waste rate** — per product, `wasted ÷ (sold + wasted)`,
+  worst first. Anchored to `batch.manufacturedAt` in range, same
+  convention `getProfitability()` already uses for wastage (a batch is
+  one day's production; `FridgeStock.updatedAt` can be bumped by an
+  unrelated later correction so it isn't a reliable anchor).
+- **Fridge comparison** — revenue and order count per fridge.
+
+## Items sold — Today / Yesterday / Custom
+
+The Sales tab has a new card, above Best Sellers, with three buttons —
+**Today**, **Yesterday**, **Custom…** (the last reveals From/To date
+pickers) — showing a straightforward product/quantity/revenue table for
+whichever period is selected. Pulls from the same
+`/api/admin/analytics` endpoint's `productBreakdown` field the Analytics
+tab uses, just scoped to a single day by default instead of a full
+range.
+
+## Custom date range for Batches and Stock
+
+Both tabs' filter dropdowns gained a **"Custom range…"** option
+alongside their existing presets (Batches: Today-active / All; Stock:
+Live today / Closed out / All), revealing From/To date pickers that
+filter by the batch's `manufacturedAt`. Both tables were already
+fetched in full and filtered client-side from a cache
+(`batchesCache`/`stockCache`) rather than re-querying the server per
+filter change, so this needed no backend changes at all — purely a
+dashboard-side addition.
+
 ## Not in Phase 1 (next phases, on request)
 
 - Kitchen/admin console beyond what's in `/admin` today

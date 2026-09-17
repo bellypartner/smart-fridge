@@ -235,6 +235,17 @@
   .stock-bar .seg-held { background: var(--cta); }
   .stock-legend { font-size: 11px; color: var(--body); margin-top: 4px; }
 
+  /* Simple CSS bar chart — no charting library, just proportional-height
+     bars with a hover title for the exact value. Horizontally scrolls
+     within its card if there are more bars than fit (a wide date range,
+     or all 24 hours), matching how wide tables already behave on mobile. */
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 160px; overflow-x: auto; padding-top: 20px; }
+  .bar-chart-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex: 1 0 28px; height: 100%; min-width: 28px; }
+  .bar-chart-bar { width: 100%; max-width: 26px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; }
+  .bar-chart-bar-value { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--heading); white-space: nowrap; }
+  .bar-chart-label { font-size: 10px; color: var(--body); margin-top: 6px; white-space: nowrap; }
+  .bar-chart-empty { color: var(--body); font-size: 13px; padding: 20px 0; }
+
   .field-note { font-size: 11px; color: var(--body); margin-top: 4px; }
 
   .img-upload { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
@@ -424,6 +435,7 @@
     <div class="nav-item hidden" id="customersNavItem" data-tab="customers" onclick="switchTab('customers')">Customers</div>
     <div class="nav-item hidden" id="feedbackNavItem" data-tab="feedback" onclick="switchTab('feedback')">Feedback</div>
     <div class="nav-item hidden" id="profitabilityNavItem" data-tab="profitability" onclick="switchTab('profitability')">Profitability</div>
+    <div class="nav-item hidden" id="analyticsNavItem" data-tab="analytics" onclick="switchTab('analytics')">Analytics</div>
     <div class="nav-item hidden" id="staffNavItem" data-tab="staff" onclick="switchTab('staff')">Staff</div>
 
     <div class="sidebar-footer">
@@ -547,10 +559,15 @@
         <div class="card">
           <div class="card-header-row">
             <h3>All batches</h3>
-            <select id="batchFilterMode" class="filter-select" onchange="renderBatchesTable()">
+            <select id="batchFilterMode" class="filter-select" onchange="onBatchFilterModeChange()">
               <option value="today-active">Today, active</option>
+              <option value="custom">Custom range…</option>
               <option value="all">All batches</option>
             </select>
+          </div>
+          <div id="batchCustomRange" class="hidden" style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <div><label>From</label><input type="date" id="batchRangeFrom" onchange="renderBatchesTable()" /></div>
+            <div><label>To</label><input type="date" id="batchRangeTo" onchange="renderBatchesTable()" /></div>
           </div>
           <table>
             <thead><tr><th>Batch code</th><th>Product</th><th>Made on</th><th>Expires</th><th>Made</th><th>Available to assign</th><th>Status</th><th></th></tr></thead>
@@ -579,11 +596,16 @@
         <div class="card">
           <div class="card-header-row">
             <h3>Current stock at selected fridge</h3>
-            <select id="stockFilterMode" class="filter-select" onchange="renderStockTable()">
+            <select id="stockFilterMode" class="filter-select" onchange="onStockFilterModeChange()">
               <option value="live-today">Live today</option>
               <option value="closed-out">Closed out</option>
+              <option value="custom">Custom range…</option>
               <option value="all">All</option>
             </select>
+          </div>
+          <div id="stockCustomRange" class="hidden" style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <div><label>From</label><input type="date" id="stockRangeFrom" onchange="renderStockTable()" /></div>
+            <div><label>To</label><input type="date" id="stockRangeTo" onchange="renderStockTable()" /></div>
           </div>
           <table class="stock-table-desktop">
             <thead><tr><th>Product</th><th>Batch</th><th>Made on</th><th>Allocated here</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
@@ -606,6 +628,26 @@
         <div class="stat-card"><div class="stat-label">Total paid orders</div><div class="stat-value" id="statTotalOrders">0</div></div>
         <div class="stat-card"><div class="stat-label">Today's revenue</div><div class="stat-value accent" id="statTodayRevenue">₹0</div></div>
         <div class="stat-card"><div class="stat-label">Today's orders</div><div class="stat-value" id="statTodayOrders">0</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header-row">
+          <h3>Items sold</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="qr-btn" id="itemsSoldBtnToday" onclick="setItemsSoldRange('today')">Today</button>
+            <button class="qr-btn" id="itemsSoldBtnYesterday" onclick="setItemsSoldRange('yesterday')">Yesterday</button>
+            <button class="qr-btn" id="itemsSoldBtnCustom" onclick="setItemsSoldRange('custom')">Custom…</button>
+          </div>
+        </div>
+        <div id="itemsSoldCustomRange" class="hidden" style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <div><label>From</label><input type="date" id="itemsSoldFrom" onchange="loadItemsSold()" /></div>
+          <div><label>To</label><input type="date" id="itemsSoldTo" onchange="loadItemsSold()" /></div>
+        </div>
+        <div class="field-note" style="margin-top:0">Combines app orders, manual (bank QR), and vending sales — everything that counts as a real sale.</div>
+        <table>
+          <thead><tr><th>Product</th><th>Qty sold</th><th>Revenue</th></tr></thead>
+          <tbody id="itemsSoldTable"><tr class="empty-row"><td colspan="3">Loading…</td></tr></tbody>
+        </table>
       </div>
 
       <div class="grid-2">
@@ -841,6 +883,56 @@
           <thead><tr><th>Date</th><th>Fridge</th><th>Product</th><th>Channel</th><th>Qty</th><th>Amount</th><th></th></tr></thead>
           <tbody id="manualSalesTable"><tr class="empty-row"><td colspan="7">No manual or vending sales in this period</td></tr></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div class="tab-panel hidden" id="tab-analytics">
+      <h1>Analytics</h1>
+      <div class="page-sub">Combines app orders, manual (bank QR), and vending sales for a fuller picture than Sales alone.</div>
+
+      <div class="card" style="margin-bottom:20px">
+        <div class="form-row-2">
+          <div><label>From</label><input id="analyticsFrom" type="date" onchange="loadAnalytics()" /></div>
+          <div><label>To</label><input id="analyticsTo" type="date" onchange="loadAnalytics()" /></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <h3>Revenue by day</h3>
+        <div id="revenueChart" class="bar-chart"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>What sold (all channels)</h3>
+          <table>
+            <thead><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr></thead>
+            <tbody id="analyticsProductTable"><tr class="empty-row"><td colspan="3">No sales in this period</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Peak order hours</h3>
+          <div id="peakHoursChart" class="bar-chart"></div>
+          <div class="field-note" style="margin-top:10px">App orders only — manual/vending sales are often entered in a batch at close-out, so their timestamp doesn't reflect when the sale actually happened.</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:24px">
+        <div class="card">
+          <h3>Highest waste rate</h3>
+          <table>
+            <thead><tr><th>Product</th><th>Sold</th><th>Wasted</th><th>Waste %</th></tr></thead>
+            <tbody id="wasteRateTable"><tr class="empty-row"><td colspan="4">No waste recorded in this period</td></tr></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Fridge comparison</h3>
+          <table>
+            <thead><tr><th>Fridge</th><th>Orders</th><th>Revenue</th></tr></thead>
+            <tbody id="fridgeComparisonTable"><tr class="empty-row"><td colspan="3">No sales in this period</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1086,6 +1178,7 @@ function enterDashboard() {
     document.getElementById('salesNavItem').classList.remove('hidden');
     document.getElementById('customersNavItem').classList.remove('hidden');
     document.getElementById('profitabilityNavItem').classList.remove('hidden');
+    document.getElementById('analyticsNavItem').classList.remove('hidden');
   }
   refreshAll();
 }
@@ -1125,6 +1218,7 @@ function switchTab(tab) {
   if (tab === 'staff') loadStaff();
   if (tab === 'feedback') loadFeedback();
   if (tab === 'profitability') { loadProfitability(); loadExpenseCategories(); }
+  if (tab === 'analytics') loadAnalytics();
   closeMobileSidebar();
 }
 
@@ -1362,6 +1456,12 @@ function loadBatches() {
   }).catch(() => {});
 }
 
+function onBatchFilterModeChange() {
+  const mode = document.getElementById('batchFilterMode').value;
+  document.getElementById('batchCustomRange').classList.toggle('hidden', mode !== 'custom');
+  renderBatchesTable();
+}
+
 // Renders the batches table from the already-fetched cache, applying
 // whichever filter is selected — no extra API call, just a re-render.
 function renderBatchesTable() {
@@ -1371,10 +1471,17 @@ function renderBatchesTable() {
   let rows = batchesCache.slice();
   if (mode === 'today-active') {
     rows = rows.filter((b) => b.status === 'ACTIVE' && isSameDay(b.manufacturedAt, today));
+  } else if (mode === 'custom') {
+    const fromVal = document.getElementById('batchRangeFrom').value;
+    const toVal = document.getElementById('batchRangeTo').value;
+    if (fromVal) rows = rows.filter((b) => new Date(b.manufacturedAt) >= new Date(fromVal + 'T00:00:00'));
+    if (toVal) rows = rows.filter((b) => new Date(b.manufacturedAt) <= new Date(toVal + 'T23:59:59.999'));
   }
   rows.sort((a, b) => new Date(b.manufacturedAt) - new Date(a.manufacturedAt));
 
   const tbody = document.getElementById('batchesTable');
+  const emptyMessage = mode === 'today-active' ? 'No active batches made today — try "Custom range" or "All batches"' :
+    mode === 'custom' ? 'No batches made in that range' : 'No batches yet';
   tbody.innerHTML = rows.length ? rows.map((b) => (
     '<tr><td>' + b.batchCode + '</td><td>' + b.product.name + '</td><td>' + new Date(b.manufacturedAt).toLocaleDateString() + '</td>' +
     '<td>' + new Date(b.expiresAt).toLocaleString() + '</td>' +
@@ -1384,7 +1491,7 @@ function renderBatchesTable() {
     '<td><button class="qr-btn" onclick="openBatchQr(\'' + b.id + '\')">QR</button> ' +
     '<button class="qr-btn" onclick="openEditModal(\'batch\',\'' + b.id + '\')">Edit</button> ' +
     '<button class="delete-link" onclick="deleteEntity(\'batch\',\'' + b.id + '\',\'' + escQ(b.batchCode) + '\')">Delete</button></td></tr>'
-  )).join('') : '<tr class="empty-row"><td colspan="8">' + (mode === 'today-active' ? 'No active batches made today — try "All batches"' : 'No batches yet') + '</td></tr>';
+  )).join('') : '<tr class="empty-row"><td colspan="8">' + emptyMessage + '</td></tr>';
 }
 
 function createBatch() {
@@ -1418,6 +1525,12 @@ function loadFridgeStock() {
   }).catch(() => {});
 }
 
+function onStockFilterModeChange() {
+  const mode = document.getElementById('stockFilterMode').value;
+  document.getElementById('stockCustomRange').classList.toggle('hidden', mode !== 'custom');
+  renderStockTable();
+}
+
 // Renders from the already-fetched cache — no extra API call on filter change.
 function renderStockTable() {
   const tbody = document.getElementById('stockTable');
@@ -1435,6 +1548,11 @@ function renderStockTable() {
     // entirely, ready for the after-the-fact physical-count check rather
     // than mixed in with what's still actually sellable today.
     rows = rows.filter((r) => r.batch.status !== 'ACTIVE');
+  } else if (mode === 'custom') {
+    const fromVal = document.getElementById('stockRangeFrom').value;
+    const toVal = document.getElementById('stockRangeTo').value;
+    if (fromVal) rows = rows.filter((r) => new Date(r.batch.manufacturedAt) >= new Date(fromVal + 'T00:00:00'));
+    if (toVal) rows = rows.filter((r) => new Date(r.batch.manufacturedAt) <= new Date(toVal + 'T23:59:59.999'));
   }
   rows.sort((a, b) => new Date(b.batch.manufacturedAt) - new Date(a.batch.manufacturedAt));
 
@@ -1456,7 +1574,8 @@ function renderStockTable() {
   });
 
   const emptyMessage = mode === 'live-today' ? 'Nothing live today — try "All" or "Closed out"' :
-    mode === 'closed-out' ? 'Nothing closed out yet' : 'No stock allocated at this fridge yet';
+    mode === 'closed-out' ? 'Nothing closed out yet' :
+    mode === 'custom' ? 'Nothing made in that range' : 'No stock allocated at this fridge yet';
 
   tbody.innerHTML = computed.length ? computed.map(({ r, availPct, closeOutDisabled, manualSaleDisabled, mismatch, mismatchTitle }) => {
     const mismatchBadge = mismatch
@@ -1773,6 +1892,58 @@ function money(n) { return '₹' + Number(n).toLocaleString('en-IN', { maximumFr
 function loadSales() {
   loadSalesStats();
   loadOrders();
+  if (!itemsSoldRange) setItemsSoldRange('today'); else loadItemsSold();
+}
+
+// ── Items sold (Today / Yesterday / Custom) ──
+let itemsSoldRange = null; // 'today' | 'yesterday' | 'custom'
+
+function setItemsSoldRange(range) {
+  itemsSoldRange = range;
+  document.getElementById('itemsSoldCustomRange').classList.toggle('hidden', range !== 'custom');
+  ['today', 'yesterday', 'custom'].forEach((r) => {
+    const btn = document.getElementById('itemsSoldBtn' + r.charAt(0).toUpperCase() + r.slice(1));
+    const active = r === range;
+    btn.style.background = active ? 'var(--primary)' : '';
+    btn.style.color = active ? 'var(--white)' : '';
+    btn.style.borderColor = active ? 'var(--primary)' : '';
+  });
+  if (range !== 'custom') loadItemsSold();
+  // For 'custom', wait for the person to actually pick dates rather than
+  // firing a request immediately with empty from/to inputs.
+}
+
+function loadItemsSold() {
+  const tbody = document.getElementById('itemsSoldTable');
+  let from, to;
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  if (itemsSoldRange === 'today') {
+    from = toStartOfDayISO(todayStr);
+    to = toEndOfDayISO(todayStr);
+  } else if (itemsSoldRange === 'yesterday') {
+    const y = new Date();
+    y.setDate(y.getDate() - 1);
+    const yStr = y.toISOString().slice(0, 10);
+    from = toStartOfDayISO(yStr);
+    to = toEndOfDayISO(yStr);
+  } else {
+    const fromVal = document.getElementById('itemsSoldFrom').value;
+    const toVal = document.getElementById('itemsSoldTo').value;
+    if (!fromVal || !toVal) { tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Pick a From and To date</td></tr>'; return; }
+    from = toStartOfDayISO(fromVal);
+    to = toEndOfDayISO(toVal);
+  }
+
+  tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Loading…</td></tr>';
+  api('/admin/analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((data) => {
+    const rows = data.productBreakdown || [];
+    tbody.innerHTML = rows.length ? rows.map((p) => (
+      '<tr><td>' + p.productName + '</td><td>' + p.quantity + '</td><td>' + money(p.revenue) + '</td></tr>'
+    )).join('') : '<tr class="empty-row"><td colspan="3">Nothing sold in this period</td></tr>';
+  }).catch(() => {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Could not load — try again</td></tr>';
+  });
 }
 
 function loadSalesStats() {
@@ -2096,6 +2267,81 @@ function ensureDefaultProfitDates() {
   if (!toEl.value) {
     toEl.value = new Date().toISOString().slice(0, 10);
   }
+}
+
+// ── Analytics ────────────────────────────────
+function ensureDefaultAnalyticsDates() {
+  const fromEl = document.getElementById('analyticsFrom');
+  const toEl = document.getElementById('analyticsTo');
+  if (!fromEl.value) {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    fromEl.value = firstOfMonth.toISOString().slice(0, 10);
+  }
+  if (!toEl.value) {
+    toEl.value = new Date().toISOString().slice(0, 10);
+  }
+}
+
+// Renders a simple proportional-height bar chart into a container — no
+// charting library. items: [{label, value}]. formatValue formats the
+// number shown above each bar and in its hover title.
+function renderBarChart(containerId, items, formatValue) {
+  const container = document.getElementById(containerId);
+  if (!items.length) { container.innerHTML = '<div class="bar-chart-empty">No data in this period</div>'; return; }
+  const max = Math.max.apply(null, items.map((i) => i.value).concat([1]));
+  container.innerHTML = items.map((i) => {
+    const heightPct = Math.max((i.value / max) * 100, 2);
+    return '<div class="bar-chart-col">' +
+      '<div class="bar-chart-bar" style="height:' + heightPct + '%" title="' + i.label + ': ' + formatValue(i.value) + '">' +
+      (i.value > 0 ? '<div class="bar-chart-bar-value">' + formatValue(i.value) + '</div>' : '') +
+      '</div>' +
+      '<div class="bar-chart-label">' + i.label + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function loadAnalytics() {
+  ensureDefaultAnalyticsDates();
+  const from = toStartOfDayISO(document.getElementById('analyticsFrom').value);
+  const to = toEndOfDayISO(document.getElementById('analyticsTo').value);
+
+  api('/admin/analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((data) => {
+    // Revenue by day
+    const revenueItems = (data.dailyRevenue || []).map((d) => ({
+      label: new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      value: d.revenue,
+    }));
+    renderBarChart('revenueChart', revenueItems, (v) => money(v));
+
+    // Peak hours — only show hours that actually had at least one order,
+    // in order, so a mostly-idle overnight stretch doesn't dominate the
+    // chart with a wall of empty bars.
+    const activeHours = (data.peakHours || []).filter((h) => h.orderCount > 0);
+    const hourItems = activeHours.map((h) => ({
+      label: (h.hour % 12 === 0 ? 12 : h.hour % 12) + (h.hour < 12 ? 'am' : 'pm'),
+      value: h.orderCount,
+    }));
+    renderBarChart('peakHoursChart', hourItems, (v) => String(v));
+
+    // What sold, all channels
+    const productRows = data.productBreakdown || [];
+    document.getElementById('analyticsProductTable').innerHTML = productRows.length
+      ? productRows.map((p) => '<tr><td>' + p.productName + '</td><td>' + p.quantity + '</td><td>' + money(p.revenue) + '</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="3">No sales in this period</td></tr>';
+
+    // Highest waste rate
+    const wasteRows = data.wasteByProduct || [];
+    document.getElementById('wasteRateTable').innerHTML = wasteRows.length
+      ? wasteRows.map((w) => '<tr><td>' + w.productName + '</td><td>' + w.sold + '</td><td>' + w.wasted + '</td><td>' + w.wasteRatePct.toFixed(1) + '%</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="4">No waste recorded in this period</td></tr>';
+
+    // Fridge comparison
+    const fridgeRows = data.fridgeComparison || [];
+    document.getElementById('fridgeComparisonTable').innerHTML = fridgeRows.length
+      ? fridgeRows.map((f) => '<tr><td>' + f.fridgeName + '</td><td>' + f.orders + '</td><td>' + money(f.revenue) + '</td></tr>').join('')
+      : '<tr class="empty-row"><td colspan="3">No sales in this period</td></tr>';
+  }).catch(() => {});
 }
 
 // One-time catch-up for batches created before their product ever had a
