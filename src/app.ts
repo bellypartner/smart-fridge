@@ -48,6 +48,11 @@ app.use(apiLimiter);
 
 app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
+// Public home page — pos.saladcaffe.com root. Choose location → choose
+// fridge → straight into /shop for that fridge. Mounted at the bare root,
+// which was otherwise unused.
+app.use("/", express.static(path.join(process.cwd(), "public/home")));
+
 // Admin dashboard — plain static HTML/JS, calls the /api routes below itself.
 app.use("/admin", express.static(path.join(process.cwd(), "public/admin")));
 

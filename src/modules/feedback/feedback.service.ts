@@ -169,3 +169,19 @@ export const getSubscriptionFeedbackStats = async () => {
     recommendCount: recommendRatings.length,
   };
 };
+
+// Powers the dashboard's "new feedback" notification badge — just the
+// single most recent submission across both feedback tables, so the
+// dashboard can poll this cheaply instead of re-fetching full lists on
+// a timer.
+export const getLatestFeedbackAt = async () => {
+  const [latestFeedback, latestSubscription] = await Promise.all([
+    prisma.feedback.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+    prisma.subscriptionFeedback.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+  ]);
+  const dates = [latestFeedback?.createdAt, latestSubscription?.createdAt].filter(
+    (d): d is Date => d != null
+  );
+  if (dates.length === 0) return { latestAt: null };
+  return { latestAt: new Date(Math.max(...dates.map((d) => d.getTime()))).toISOString() };
+};

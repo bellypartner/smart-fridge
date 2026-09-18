@@ -33,3 +33,7 @@ export const listSubscriptionFeedback = async (_req: Request, res: Response) => 
 export const getSubscriptionFeedbackStats = async (_req: Request, res: Response) => {
   res.status(200).json(await feedbackService.getSubscriptionFeedbackStats());
 };
+
+export const getLatestFeedbackAt = async (_req: Request, res: Response) => {
+  res.status(200).json(await feedbackService.getLatestFeedbackAt());
+};

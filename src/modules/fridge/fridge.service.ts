@@ -12,3 +12,14 @@ export const getFridgeByCode = async (code: string) => {
   }
   return fridge;
 };
+
+// Public — powers the home page's "choose your location, then fridge"
+// flow. Only active fridges, and only the fields a customer needs to
+// pick one (never stock, QR data, or anything internal).
+export const listActiveFridges = async () => {
+  return prisma.fridge.findMany({
+    where: { isActive: true },
+    select: { code: true, name: true, location: true },
+    orderBy: [{ location: "asc" }, { name: "asc" }],
+  });
+};

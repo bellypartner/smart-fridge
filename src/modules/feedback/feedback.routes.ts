@@ -63,6 +63,15 @@ adminFeedbackRouter.get(
   asyncHandler(feedbackController.getFeedbackStats)
 );
 
+// Powers the dashboard's notification badge — deliberately unfiltered by
+// source, since the badge means "something new to check," not "something
+// new of one specific type."
+adminFeedbackRouter.get(
+  "/latest",
+  requireRole("ADMIN", "KITCHEN"),
+  asyncHandler(feedbackController.getLatestFeedbackAt)
+);
+
 // ── Subscription feedback viewing — same ADMIN+KITCHEN access as above ──
 export const adminSubscriptionFeedbackRouter = Router();
 adminSubscriptionFeedbackRouter.use(requireAuth);

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Salad Caffe — Smart Fridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --primary: #1B5E20;
+    --secondary: #43A047;
+    --accent: #8BC34A;
+    --cta: #FF7A00;
+    --heading: #1F2937;
+    --body: #4B5563;
+    --bg: #0D47A1;
+    --bg-deep: #0A3A82;
+    --white: #FFFFFF;
+    --border: #E5E1D8;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: 'Inter', sans-serif; color: var(--body);
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, .brand { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--white); }
+  h2 { font-family: 'Plus Jakarta Sans', sans-serif; color: var(--heading); }
+
+  .wrap { max-width: 480px; margin: 0 auto; padding: 32px 20px 60px; text-align: center; }
+  .brand-mark { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 22px; }
+  .brand-mark .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cta); }
+  .brand { font-size: 20px; font-weight: 800; }
+
+  .fridge-icon { margin: 8px auto 26px; width: 128px; height: 128px; }
+
+  .page-title { font-size: 34px; margin: 0 0 12px; line-height: 1.18; font-weight: 800; }
+  .page-sub { font-size: 15px; color: rgba(255,255,255,0.88); margin-bottom: 30px; line-height: 1.55; }
+
+  .card {
+    background: var(--white); border: 1px solid var(--border); border-radius: 18px;
+    padding: 22px; margin-bottom: 16px; text-align: left;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+  }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .card .section-sub { font-size: 12px; color: var(--body); margin-bottom: 18px; }
+
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--heading); margin: 16px 0 8px; }
+  label:first-of-type { margin-top: 0; }
+  select {
+    width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+    font-family: 'Inter', sans-serif; font-size: 14.5px; color: var(--heading); background: var(--white);
+    outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%234B5563' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+  }
+  select:focus { border-color: var(--secondary); }
+  select:disabled { color: #9A9488; background-color: #FAFAF7; }
+
+  .hint {
+    font-size: 12.5px; color: rgba(255,255,255,0.78); margin-top: 24px; line-height: 1.6;
+  }
+  .status-msg { font-size: 13px; color: var(--body); padding: 6px 0; }
+  .error-msg {
+    background: #FDEDEC; color: #C0392B; border: 1px solid #F5B7B1;
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand-mark"><span class="dot"></span><span class="brand">Salad Caffe</span></div>
+
+  <svg class="fridge-icon" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="14" y="4" width="36" height="56" rx="7" fill="#FFFFFF"/>
+    <line x1="14" y1="24" x2="50" y2="24" stroke="#0D47A1" stroke-width="2.5"/>
+    <line x1="21" y1="10" x2="21" y2="18" stroke="#0D47A1" stroke-width="3" stroke-linecap="round"/>
+    <line x1="21" y1="30" x2="21" y2="38" stroke="#0D47A1" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="44" cy="44" r="4" fill="#FF7A00"/>
+  </svg>
+
+  <h1 class="page-title">Welcome to Salad Caffe Smart Fridge Solutions</h1>
+  <div class="page-sub">Grab what you like, scan the item's QR code on the fridge shelf, and pay in the app. If you'd rather not scan, choose your fridge below to get started instead.</div>
+
+  <div class="card">
+    <h2>Choose your fridge</h2>
+    <div class="section-sub">Pick your location, then the specific fridge — this opens straight into scanning for that fridge.</div>
+
+    <label for="locationSelect">Location</label>
+    <select id="locationSelect" onchange="onLocationChange()" disabled>
+      <option value="">Loading locations…</option>
+    </select>
+
+    <label for="fridgeSelect" id="fridgeLabel" style="display:none">Fridge</label>
+    <select id="fridgeSelect" onchange="onFridgeChange()" style="display:none">
+      <option value="">Select a fridge…</option>
+    </select>
+
+    <div id="statusMsg" class="status-msg"></div>
+  </div>
+
+  <div class="hint">Already have a fridge's QR code? Just scan it directly — you don't need this page at all.</div>
+</div>
+
+<script>
+let fridgesByLocation = {};
+
+function onLocationChange() {
+  const loc = document.getElementById('locationSelect').value;
+  const fridgeLabel = document.getElementById('fridgeLabel');
+  const fridgeSelect = document.getElementById('fridgeSelect');
+  if (!loc) {
+    fridgeLabel.style.display = 'none';
+    fridgeSelect.style.display = 'none';
+    return;
+  }
+  const fridges = fridgesByLocation[loc] || [];
+  fridgeSelect.innerHTML = '<option value="">Select a fridge…</option>' +
+    fridges.map((f) => '<option value="' + f.code + '">' + f.name + '</option>').join('');
+  fridgeLabel.style.display = 'block';
+  fridgeSelect.style.display = 'block';
+}
+
+function onFridgeChange() {
+  const code = document.getElementById('fridgeSelect').value;
+  if (code) window.location.href = '/shop?fridge=' + encodeURIComponent(code);
+}
+
+fetch('/api/fridges')
+  .then((res) => {
+    if (!res.ok) throw new Error('Could not load fridges');
+    return res.json();
+  })
+  .then((fridges) => {
+    const statusMsg = document.getElementById('statusMsg');
+    const locationSelect = document.getElementById('locationSelect');
+
+    if (!fridges.length) {
+      locationSelect.innerHTML = '<option value="">No fridges available right now</option>';
+      statusMsg.textContent = 'Please check back shortly, or ask a team member for a QR code to scan.';
+      return;
+    }
+
+    fridgesByLocation = {};
+    fridges.forEach((f) => {
+      const loc = f.location || 'Other';
+      if (!fridgesByLocation[loc]) fridgesByLocation[loc] = [];
+      fridgesByLocation[loc].push(f);
+    });
+
+    const locations = Object.keys(fridgesByLocation).sort();
+    locationSelect.innerHTML = '<option value="">Select a location…</option>' +
+      locations.map((loc) => '<option value="' + loc + '">' + loc + '</option>').join('');
+    locationSelect.disabled = false;
+  })
+  .catch(() => {
+    document.getElementById('locationSelect').innerHTML = '<option value="">Could not load</option>';
+    document.getElementById('statusMsg').innerHTML = '<div class="error-msg">Could not load fridge locations — please refresh, or scan the QR code on your fridge directly.</div>';
+  });
+</script>
+</body>
+</html>
