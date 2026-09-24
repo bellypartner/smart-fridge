@@ -647,6 +647,10 @@
           <div><label>From</label><input type="date" id="itemsSoldFrom" onchange="loadItemsSold()" /></div>
           <div><label>To</label><input type="date" id="itemsSoldTo" onchange="loadItemsSold()" /></div>
         </div>
+        <label>Fridge</label>
+        <select id="itemsSoldFridgeFilter" onchange="loadItemsSold()" style="margin-bottom:14px">
+          <option value="">All fridges</option>
+        </select>
         <div class="field-note" style="margin-top:0">Combines app orders, manual (bank QR), and vending sales — everything that counts as a real sale.</div>
         <table>
           <thead><tr><th>Product</th><th>Qty sold</th><th>Revenue</th></tr></thead>
@@ -900,11 +904,29 @@
           <div><label>From</label><input id="analyticsFrom" type="date" onchange="loadAnalytics()" /></div>
           <div><label>To</label><input id="analyticsTo" type="date" onchange="loadAnalytics()" /></div>
         </div>
+        <label style="margin-top:14px">Fridge</label>
+        <select id="analyticsFridgeFilter" onchange="loadAnalytics()">
+          <option value="">All fridges</option>
+        </select>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Total sales</div><div class="stat-value accent" id="analyticsTotalSales">₹0</div></div>
+        <div class="stat-card"><div class="stat-label">No of billings</div><div class="stat-value" id="analyticsTotalBillings">0</div></div>
       </div>
 
       <div class="card" style="margin-bottom:20px">
-        <h3>Revenue by day</h3>
+        <div class="card-header-row">
+          <h3>Revenue by day</h3>
+          <button class="qr-btn" onclick="exportAnalyticsAsText()">Export as text</button>
+        </div>
         <div id="revenueChart" class="bar-chart"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <h3>Daily wastage</h3>
+        <div id="wastageChart" class="bar-chart"></div>
+        <div class="field-note" style="margin-top:10px">Bars show wasted units per day; hover for the wastage cost (only counted for batches with a cost price set).</div>
       </div>
 
       <div class="grid-2">
@@ -1524,14 +1546,35 @@ function renderBatchesTable() {
 }
 
 function createBatch() {
+  const productId = document.getElementById('batchProduct').value;
+  const mfgInput = document.getElementById('batchMfg').value;
   const body = {
-    productId: document.getElementById('batchProduct').value,
-    manufacturedAt: document.getElementById('batchMfg').value ? new Date(document.getElementById('batchMfg').value).toISOString() : '',
+    productId,
+    manufacturedAt: mfgInput ? new Date(mfgInput).toISOString() : '',
     totalQuantity: parseInt(document.getElementById('batchQty').value, 10),
   };
   if (!body.productId || !body.manufacturedAt || !body.totalQuantity) {
     alert('Product, manufactured date, and total quantity are all required'); return;
   }
+
+  // Warn if an ACTIVE batch for this same product on the same calendar
+  // day already exists — easy to trigger by accident (e.g. clicking
+  // Create twice), and the two would otherwise sit side by side as
+  // e.g. CHISAL-1109 and CHISAL-1109-2 with no indication anything's off.
+  const mfgDate = new Date(body.manufacturedAt);
+  const existing = batchesCache.find((b) =>
+    b.productId === productId && b.status === 'ACTIVE' && isSameDay(b.manufacturedAt, mfgDate)
+  );
+  if (existing) {
+    const proceed = confirm(
+      'A batch for this product was already made today (' + existing.batchCode + ', ' +
+      (existing.totalQuantity != null ? existing.totalQuantity : '?') + ' units).\n\n' +
+      'Click OK to create ANOTHER batch anyway (e.g. a genuine second production run today), ' +
+      'or Cancel to stop — you can then use Edit on ' + existing.batchCode + ' to adjust its quantity instead of creating a duplicate.'
+    );
+    if (!proceed) return;
+  }
+
   api('/admin/batches', { method: 'POST', body: JSON.stringify(body) })
     .then((batch) => {
       document.getElementById('batchMfg').value = '';
@@ -1947,6 +1990,14 @@ function loadItemsSold() {
   let from, to;
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  // Fridge filter options — reuse whatever's already cached from the
+  // Fridges tab rather than a separate fetch.
+  const fridgeSel = document.getElementById('itemsSoldFridgeFilter');
+  if (fridgeSel.options.length <= 1 && fridgesCache.length) {
+    fridgeSel.innerHTML = '<option value="">All fridges</option>' + fridgesCache.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
+  }
+  const fridgeQs = fridgeSel.value ? '&fridgeId=' + encodeURIComponent(fridgeSel.value) : '';
+
   if (itemsSoldRange === 'today') {
     from = toStartOfDayISO(todayStr);
     to = toEndOfDayISO(todayStr);
@@ -1965,7 +2016,7 @@ function loadItemsSold() {
   }
 
   tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Loading…</td></tr>';
-  api('/admin/analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((data) => {
+  api('/admin/analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to) + fridgeQs).then((data) => {
     const rows = data.productBreakdown || [];
     tbody.innerHTML = rows.length ? rows.map((p) => (
       '<tr><td>' + p.productName + '</td><td>' + p.quantity + '</td><td>' + money(p.revenue) + '</td></tr>'
@@ -2201,7 +2252,7 @@ function refreshEntity(t) {
   if (t === 'category') loadCategories();
   else if (t === 'fridge') loadFridges();
   else if (t === 'product') loadProducts();
-  else if (t === 'batch') loadBatches();
+  else if (t === 'batch') { loadBatches(); loadFridgeStock(); }
   else if (t === 'stock') loadFridgeStock();
   else if (t === 'staff') loadStaff();
 }
@@ -2313,8 +2364,10 @@ function ensureDefaultAnalyticsDates() {
 }
 
 // Renders a simple proportional-height bar chart into a container — no
-// charting library. items: [{label, value}]. formatValue formats the
-// number shown above each bar and in its hover title.
+// charting library. items: [{label, value, ...}]. formatValue formats the
+// number shown above each bar and in its hover title; it's also passed
+// the full item as a second argument, for callers that need more than
+// just the value (e.g. the wastage chart showing cost alongside units).
 function renderBarChart(containerId, items, formatValue) {
   const container = document.getElementById(containerId);
   if (!items.length) { container.innerHTML = '<div class="bar-chart-empty">No data in this period</div>'; return; }
@@ -2322,26 +2375,57 @@ function renderBarChart(containerId, items, formatValue) {
   container.innerHTML = items.map((i) => {
     const heightPct = Math.max((i.value / max) * 100, 2);
     return '<div class="bar-chart-col">' +
-      '<div class="bar-chart-bar" style="height:' + heightPct + '%" title="' + i.label + ': ' + formatValue(i.value) + '">' +
-      (i.value > 0 ? '<div class="bar-chart-bar-value">' + formatValue(i.value) + '</div>' : '') +
+      '<div class="bar-chart-bar" style="height:' + heightPct + '%" title="' + i.label + ': ' + formatValue(i.value, i) + '">' +
+      (i.value > 0 ? '<div class="bar-chart-bar-value">' + formatValue(i.value, i) + '</div>' : '') +
       '</div>' +
       '<div class="bar-chart-label">' + i.label + '</div>' +
     '</div>';
   }).join('');
 }
 
+let lastAnalyticsData = null; // so Export can reuse the already-fetched data instead of re-fetching
+
 function loadAnalytics() {
   ensureDefaultAnalyticsDates();
   const from = toStartOfDayISO(document.getElementById('analyticsFrom').value);
   const to = toEndOfDayISO(document.getElementById('analyticsTo').value);
 
-  api('/admin/analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to)).then((data) => {
+  // Fridge filter options — reuse whatever's already cached from the
+  // Fridges tab rather than a separate fetch.
+  const fridgeSel = document.getElementById('analyticsFridgeFilter');
+  if (fridgeSel.options.length <= 1 && fridgesCache.length) {
+    fridgeSel.innerHTML = '<option value="">All fridges</option>' + fridgesCache.map((f) => '<option value="' + f.id + '">' + f.code + ' — ' + f.name + '</option>').join('');
+  }
+  const fridgeId = fridgeSel.value;
+  const fridgeQs = fridgeId ? '&fridgeId=' + encodeURIComponent(fridgeId) : '';
+
+  api('/admin/analytics?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to) + fridgeQs).then((data) => {
+    lastAnalyticsData = data;
+
+    // Total sales / No of billings — summed from the daily breakdown,
+    // for the selected fridge (or all of them) and date range.
+    const totals = (data.dailyRevenue || []).reduce((acc, d) => {
+      acc.revenue += d.revenue;
+      acc.billings += d.billings;
+      return acc;
+    }, { revenue: 0, billings: 0 });
+    document.getElementById('analyticsTotalSales').textContent = money(totals.revenue);
+    document.getElementById('analyticsTotalBillings').textContent = totals.billings;
+
     // Revenue by day
     const revenueItems = (data.dailyRevenue || []).map((d) => ({
       label: new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
       value: d.revenue,
     }));
     renderBarChart('revenueChart', revenueItems, (v) => money(v));
+
+    // Daily wastage — bar height is wasted units, hover title shows cost too.
+    const wastageItems = (data.dailyWastage || []).map((d) => ({
+      label: new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      value: d.wastedUnits,
+      cost: d.wastedCost,
+    }));
+    renderBarChart('wastageChart', wastageItems, (v, i) => v + ' units' + (i && i.cost ? ' (' + money(i.cost) + ')' : ''));
 
     // Peak hours — only show hours that actually had at least one order,
     // in order, so a mostly-idle overnight stretch doesn't dominate the
@@ -2371,6 +2455,46 @@ function loadAnalytics() {
       ? fridgeRows.map((f) => '<tr><td>' + f.fridgeName + '</td><td>' + f.orders + '</td><td>' + money(f.revenue) + '</td></tr>').join('')
       : '<tr class="empty-row"><td colspan="3">No sales in this period</td></tr>';
   }).catch(() => {});
+}
+
+// Plain-text export (opens fine in Notepad) — reuses whatever loadAnalytics
+// already fetched rather than making a fresh request, so this always
+// matches exactly what's on screen for the current date range and fridge.
+function exportAnalyticsAsText() {
+  if (!lastAnalyticsData || !(lastAnalyticsData.dailyRevenue || []).length) {
+    alert('Nothing to export for this date range yet.');
+    return;
+  }
+  const fridgeSel = document.getElementById('analyticsFridgeFilter');
+  const fridgeLabel = fridgeSel.value ? fridgeSel.options[fridgeSel.selectedIndex].textContent : 'All fridges';
+  const from = document.getElementById('analyticsFrom').value;
+  const to = document.getElementById('analyticsTo').value;
+
+  const lines = [];
+  lines.push('Salad Caffe — Sales Report');
+  lines.push('Fridge: ' + fridgeLabel);
+  lines.push('Period: ' + from + ' to ' + to);
+  lines.push('');
+  lines.push('Date\t\tNo of billings\tTotal amount');
+  lines.push('----\t\t--------------\t------------');
+  let totalBillings = 0, totalAmount = 0;
+  lastAnalyticsData.dailyRevenue.forEach((d) => {
+    lines.push(d.date + '\t\t' + d.billings + '\t\t' + money(d.revenue));
+    totalBillings += d.billings;
+    totalAmount += d.revenue;
+  });
+  lines.push('----\t\t--------------\t------------');
+  lines.push('TOTAL\t\t' + totalBillings + '\t\t' + money(totalAmount));
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'sales-report-' + (fridgeSel.value ? fridgeSel.value + '-' : 'all-fridges-') + from + '-to-' + to + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // One-time catch-up for batches created before their product ever had a
@@ -2469,14 +2593,14 @@ function editManualSale(id, currentQuantity) {
   if (isNaN(quantity) || quantity <= 0) { alert('Enter a valid quantity'); return; }
   if (quantity === currentQuantity) return;
   api('/admin/manual-sales/' + id, { method: 'PATCH', body: JSON.stringify({ quantity }) })
-    .then(() => loadProfitability())
+    .then(() => { loadProfitability(); loadFridgeStock(); })
     .catch((e) => alert(e.message));
 }
 
 function deleteManualSaleRow(id) {
   if (!confirm('Delete this sale record? This gives the units back to available stock.')) return;
   api('/admin/manual-sales/' + id, { method: 'DELETE' })
-    .then(() => loadProfitability())
+    .then(() => { loadProfitability(); loadFridgeStock(); })
     .catch((e) => alert(e.message));
 }
 

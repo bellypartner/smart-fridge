@@ -444,8 +444,8 @@ router.get(
   requireRole("ADMIN"),
   validate(analyticsQuerySchema),
   asyncHandler(async (req, res) => {
-    const { from, to } = req.query as { from: string; to: string };
-    res.status(200).json(await adminService.getAnalytics(new Date(from), new Date(to)));
+    const { from, to, fridgeId } = req.query as { from: string; to: string; fridgeId?: string };
+res.status(200).json(await adminService.getAnalytics(new Date(from), new Date(to), fridgeId));
   })
 );
 
