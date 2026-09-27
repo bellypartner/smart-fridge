@@ -313,6 +313,17 @@
        the customer can still type it into the shop app's "Can't scan?
        Enter the code" fallback instead of the item being unpurchasable. */
     @page { size: 50mm 25mm; margin: 0; }
+    /* Named page for the 40x40 batch label — set once, statically, at
+       page load. Deliberately NOT done via a <style> tag injected right
+       before window.print(): that approach depends on the browser
+       re-checking page styles between the injection and the print call,
+       which isn't guaranteed to happen in time, and printing the batch
+       label at the wrong (50x25) page size would explain a 40x40-square
+       design coming out small and pushed to one side — squeezed into a
+       page shaped wrong for it. Named pages sidestep that entirely: the
+       size is fixed from the start, the "page: batch40" property below
+       just tells the browser which one to use for this element. */
+    @page batch40 { size: 40mm 40mm; margin: 0; }
     body > *:not(#printArea) { display: none !important; }
     #printArea { display: block !important; }
 
@@ -391,6 +402,7 @@
       width: 40mm; height: 40mm; box-sizing: border-box;
       display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm;
       margin: 0 auto;
+      page: batch40;
       page-break-after: always; break-after: page;
       font-family: Arial, Helvetica, sans-serif; color: #000;
     }
@@ -1964,30 +1976,14 @@ function formatLabelDateTime(dateStr) {
   return formatLabelDateShort(dateStr) + ' ' + formatLabelTime(dateStr);
 }
 
-// Batch/price labels print at 40mm x 40mm; feedback and fridge labels
-// stay at 50mm x 25mm. @page is a page-level rule that can't be scoped
-// by a parent selector the way normal CSS can, so switching it per print
-// job means injecting/replacing a <style> tag right before printing,
-// rather than relying on the static @page rule alone (which only ever
-// applies one fixed size to everything printed from this page).
-function setPrintPageSize(sizeStr) {
-  let styleEl = document.getElementById('dynamicPageSize');
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = 'dynamicPageSize';
-    document.head.appendChild(styleEl);
-  }
-  styleEl.textContent = '@page { size: ' + sizeStr + '; margin: 0; }';
-}
-
-// Builds one label per physical copy — sized exactly to the thermal
-// printer via the @page rule (static default, or the dynamic override
-// above for batch labels), not a cut-apart sheet.
+// Builds one label per physical copy. Batch labels are 40mm x 40mm
+// (the "batch40" named page, bound via the "page: batch40" CSS property
+// on .thermal-label-batch40 itself); feedback and fridge labels use the
+// default @page rule at 50mm x 25mm. Both are fixed at page-load time —
+// nothing here needs to set the page size at print time.
 function printQrSheet() {
   if (!qrState.dataUrl) return;
   const copies = qrState.isBatch ? Math.max(1, parseInt(document.getElementById('qrCopiesInput').value, 10) || 1) : 1;
-
-  setPrintPageSize(qrState.isBatch ? '40mm 40mm' : '50mm 25mm');
 
   let labelHtml;
   if (qrState.isBatch && qrState.batch) {
