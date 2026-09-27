@@ -338,12 +338,6 @@
        hit the identical problem. Weight now gets its own small line —
        there was plenty of unused vertical space once the horizontal
        overflow was the actual constraint, not height. */
-    .thermal-label .tl-weight-line { font-size: 1.9mm; font-weight: 700; line-height: 1.15; white-space: nowrap; color: #333; }
-    /* Price gets its own bigger/bolder treatment, separate from the plain
-       Mfg/Exp detail lines — it's the one number a customer paying
-       manually via the backup bank QR actually needs to act on, so it
-       should be the most prominent line after the item name. */
-    .thermal-label .tl-price-line { font-size: 2.6mm; font-weight: 800; line-height: 1.2; white-space: nowrap; margin: 0.2mm 0; }
     /* QR + code stacked in their own column, code centered directly under
        the QR — same visual convention as a "SCAN HERE" caption under a QR,
        just with the actual batch code there instead. The column is
@@ -367,6 +361,65 @@
       text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       margin-top: 0.3mm; width: 24mm; flex-shrink: 0;
     }
+    /* 40mm x 40mm product/batch price label — completely separate from
+       .thermal-label above (which stays 50mm x 25mm for the feedback and
+       fridge labels printed by the same printQrSheet() function). Sizes
+       here are real, uncompensated physical mm — verified via true-size
+       rendering across many iterations: the QR had to come down from an
+       initially-tried 30mm to 27mm to leave room for Name+Code+Price
+       within a 36mm-tall content area (40mm label, 2mm margin per side),
+       and the Mfg/Exp vertical text needed two rounds of correction
+       (first a straight rotate(-90deg) came out backwards/unreadable,
+       then a first attempt at 2-line splitting overlapped because each
+       line's rotated footprint didn't fit the height slot it was given —
+       fixed by giving each of the 4 lines its own fixed 6.75mm slot at a
+       verified-safe 1.1mm font, not a size assumed to fit from the
+       string length alone). */
+    .thermal-label-batch40 {
+      width: 40mm; height: 40mm; box-sizing: border-box;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm;
+      margin: 0 auto;
+      page-break-after: always; break-after: page;
+      font-family: Arial, Helvetica, sans-serif; color: #000;
+    }
+    .thermal-label-batch40 .b40-name {
+      font-size: 2.5mm; font-weight: 800; line-height: 1.05; margin-bottom: 0.5mm;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; width: 100%;
+    }
+    .thermal-label-batch40 .b40-qr-row { display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%; }
+    /* Mfg date, Mfg time, Exp date, Exp time — four short vertical lines,
+       each in its own fixed-height slot (27mm / 4). Combining Mfg and
+       Exp into two single long vertical lines was tried first and was
+       harder to read; this reads more like a normal two-line date/time
+       stamp, just rotated. */
+    .thermal-label-batch40 .b40-vert-stack {
+      width: 4.5mm; height: 27mm; flex-shrink: 0;
+      display: flex; flex-direction: column;
+    }
+    .thermal-label-batch40 .b40-vert-item {
+      height: 6.75mm; width: 4.5mm; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .thermal-label-batch40 .b40-vert-box {
+      width: 4.5mm; height: 27mm; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .thermal-label-batch40 .b40-vert-text {
+      transform: rotate(-90deg); white-space: nowrap;
+      font-size: 1.1mm; font-weight: 700;
+    }
+    .thermal-label-batch40 .b40-vert-box .b40-vert-text { font-size: 1.7mm; }
+    .thermal-label-batch40 .b40-qr-img { width: 27mm; height: 27mm; flex-shrink: 0; }
+    .thermal-label-batch40 .b40-qr-img img { width: 100%; height: 100%; display: block; }
+    .thermal-label-batch40 .b40-code {
+      font-family: 'Courier New', monospace; font-weight: 700;
+      font-size: 2mm; line-height: 1.05; margin-top: 0.5mm;
+      width: 25mm; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .thermal-label-batch40 .b40-price-line {
+      font-size: 2.7mm; font-weight: 800; line-height: 1.1; margin-top: 0.6mm;
+    }
+
     .thermal-label-fridge .tl-qr-col { width: 25mm; }
     .thermal-label-fridge .tl-qr { width: 22mm; height: 22mm; }
     .thermal-label-fridge .tl-code { width: 25mm; font-size: 2mm; }
@@ -1907,11 +1960,30 @@ function formatLabelDateTime(dateStr) {
   return formatLabelDateShort(dateStr) + ' ' + formatLabelTime(dateStr);
 }
 
-// Builds one 50mm x 25mm label per physical copy — sized exactly to the
-// thermal printer via the @page rule above, not a cut-apart sheet.
+// Batch/price labels print at 40mm x 40mm; feedback and fridge labels
+// stay at 50mm x 25mm. @page is a page-level rule that can't be scoped
+// by a parent selector the way normal CSS can, so switching it per print
+// job means injecting/replacing a <style> tag right before printing,
+// rather than relying on the static @page rule alone (which only ever
+// applies one fixed size to everything printed from this page).
+function setPrintPageSize(sizeStr) {
+  let styleEl = document.getElementById('dynamicPageSize');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'dynamicPageSize';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = '@page { size: ' + sizeStr + '; margin: 0; }';
+}
+
+// Builds one label per physical copy — sized exactly to the thermal
+// printer via the @page rule (static default, or the dynamic override
+// above for batch labels), not a cut-apart sheet.
 function printQrSheet() {
   if (!qrState.dataUrl) return;
   const copies = qrState.isBatch ? Math.max(1, parseInt(document.getElementById('qrCopiesInput').value, 10) || 1) : 1;
+
+  setPrintPageSize(qrState.isBatch ? '40mm 40mm' : '50mm 25mm');
 
   let labelHtml;
   if (qrState.isBatch && qrState.batch) {
@@ -1919,34 +1991,28 @@ function printQrSheet() {
     // Selling price, not MRP — this is what a customer who can't scan
     // and has to pay manually (bank QR) should actually pay, matching
     // what the app itself would charge. Printing MRP here would have
-    // silently overcharged anyone using that fallback. "Price" (not
-    // "Pay") is deliberately its own bold/bigger line.
-    //
-    // Weight/volume gets its own small line, not combined with Exp or
-    // Price — a real printed label came back with weight completely
-    // missing because "Exp <date+time> · <weight>" was wider than the
-    // space actually available and got silently clipped off entirely.
-    // Combining it with Price instead hit the identical problem. There
-    // was plenty of unused vertical space once that was the real
-    // constraint, not height, so a 5th line was the fix.
+    // silently overcharged anyone using that fallback.
     const priceValue = Number(b.product.sellingPrice).toFixed(0);
-    const priceLine = '<div class="tl-price-line">Price ₹' + priceValue + '</div>';
-    let weightLine = '';
-    if (b.product.weightGrams) weightLine = '<div class="tl-weight-line">' + b.product.weightGrams + 'g</div>';
-    else if (b.product.volumeMl) weightLine = '<div class="tl-weight-line">' + b.product.volumeMl + 'ml</div>';
+    let qtyText = '';
+    if (b.product.weightGrams) qtyText = 'Qty ' + b.product.weightGrams + 'g';
+    else if (b.product.volumeMl) qtyText = 'Qty ' + b.product.volumeMl + 'ml';
+    // Mfg/Exp each split into a date line and a time line — four short
+    // vertical lines read far more easily than two long combined ones.
     labelHtml =
-      '<div class="thermal-label">' +
-        '<div class="tl-text">' +
-          '<div class="tl-name">' + b.product.name + '</div>' +
-          '<div class="tl-line">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div>' +
-          priceLine +
-          '<div class="tl-line">Exp ' + formatLabelDateTime(b.expiresAt) + '</div>' +
-          weightLine +
+      '<div class="thermal-label-batch40">' +
+        '<div class="b40-name">' + b.product.name + '</div>' +
+        '<div class="b40-qr-row">' +
+          '<div class="b40-vert-stack">' +
+            '<div class="b40-vert-item"><div class="b40-vert-text">Mfg ' + formatLabelDateShort(b.manufacturedAt) + '</div></div>' +
+            '<div class="b40-vert-item"><div class="b40-vert-text">' + formatLabelTime(b.manufacturedAt) + '</div></div>' +
+            '<div class="b40-vert-item"><div class="b40-vert-text">Exp ' + formatLabelDateShort(b.expiresAt) + '</div></div>' +
+            '<div class="b40-vert-item"><div class="b40-vert-text">' + formatLabelTime(b.expiresAt) + '</div></div>' +
+          '</div>' +
+          '<div class="b40-qr-img"><img src="' + qrState.dataUrl + '"></div>' +
+          '<div class="b40-vert-box"><div class="b40-vert-text">' + qtyText + '</div></div>' +
         '</div>' +
-        '<div class="tl-qr-col">' +
-          '<div class="tl-qr"><img src="' + qrState.dataUrl + '"></div>' +
-          '<div class="tl-code">' + b.batchCode + '</div>' +
-        '</div>' +
+        '<div class="b40-code">' + b.batchCode + '</div>' +
+        '<div class="b40-price-line">Price ₹' + priceValue + '</div>' +
       '</div>';
   } else if (qrState.isFeedback) {
     labelHtml =
