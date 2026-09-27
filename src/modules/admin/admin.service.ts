@@ -282,7 +282,7 @@ export const listFridgeStock = (fridgeId: string) => {
 export const setStockQuantity = async (
   fridgeId: string,
   batchId: string,
-  data: { quantityAvailable?: number; quantityWasted?: number }
+  data: { quantityAvailable?: number; quantityWasted?: number; quantityAllocated?: number }
 ) => {
   const stock = await prisma.fridgeStock.findUnique({ where: { fridgeId_batchId: { fridgeId, batchId } } });
   if (!stock) throw ApiError.notFound("Stock record not found", "STOCK_NOT_FOUND");
@@ -348,7 +348,8 @@ export const recordManualSale = async (
   quantity: number,
   actorId: string,
   note?: string,
-  channel: string = "bank_qr"
+  channel: string = "bank_qr",
+  recordedAt?: Date
 ) => {
   const stock = await prisma.fridgeStock.findUnique({
     where: { fridgeId_batchId: { fridgeId, batchId } },
@@ -371,8 +372,17 @@ export const recordManualSale = async (
       data: { quantityAvailable: { decrement: quantity }, quantitySold: { increment: quantity } },
     });
 
+    // recordedAt defaults to now() (via the schema) when not given — this
+    // is what lets a correction made today for a past day's stock (e.g.
+    // "actually 2 of these were sold via bank QR on the 23rd, not
+    // wasted") show up in Profitability/Sales/Analytics for the 23rd,
+    // instead of being silently filed under today and never appearing
+    // in the report for the day it actually happened.
     const sale = await tx.manualSale.create({
-      data: { fridgeId, batchId, quantity, unitPrice, totalAmount, recordedBy: actorId, note, channel },
+      data: {
+        fridgeId, batchId, quantity, unitPrice, totalAmount, recordedBy: actorId, note, channel,
+        ...(recordedAt ? { recordedAt } : {}),
+      },
     });
 
     await tx.auditLog.create({
@@ -381,7 +391,7 @@ export const recordManualSale = async (
         action: channel === "vending_machine" ? "VENDING_SALE_RECORDED" : "MANUAL_SALE_RECORDED",
         entityType: "ManualSale",
         entityId: sale.id,
-        metadata: { fridgeId, batchId, quantity, totalAmount: totalAmount.toString(), channel },
+        metadata: { fridgeId, batchId, quantity, totalAmount: totalAmount.toString(), channel, backdated: recordedAt != null },
       },
     });
 

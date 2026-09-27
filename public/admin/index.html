@@ -1660,8 +1660,8 @@ function renderStockTable() {
       '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></td>' +
       '<td>' + r.quantitySold + '</td>' +
       '<td>' + r.quantityWasted + '</td>' +
-      '<td><button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordManualSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Manual sale</button> ' +
-      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordVendingSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Vending sale</button> ' +
+      '<td><button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordManualSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ',undefined,\'' + r.batch.manufacturedAt + '\')">Manual sale</button> ' +
+      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordVendingSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ',\'' + r.batch.manufacturedAt + '\')">Vending sale</button> ' +
       '<button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button> ' +
       '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button></td></tr>';
@@ -1681,8 +1681,8 @@ function renderStockTable() {
       '<div class="stock-legend">' + r.quantityAvailable + ' available · ' + r.quantityHeld + ' held</div></div>' +
       '<div class="stock-card-stats"><span>Allocated <b>' + r.quantityAllocated + '</b></span><span>Sold <b>' + r.quantitySold + '</b></span><span>Wasted <b>' + r.quantityWasted + '</b></span></div>' +
       '<div class="stock-card-actions">' +
-      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordManualSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Manual sale</button>' +
-      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordVendingSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Vending sale</button>' +
+      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordManualSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ',undefined,\'' + r.batch.manufacturedAt + '\')">Manual sale</button>' +
+      '<button class="qr-btn" ' + manualSaleDisabled + ' onclick="recordVendingSale(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ',\'' + r.batch.manufacturedAt + '\')">Vending sale</button>' +
       '<button class="qr-btn" ' + closeOutDisabled + ' onclick="closeOutStock(\'' + r.fridgeId + '\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',' + r.quantityAvailable + ')">Close out</button>' +
       '<button class="qr-btn" onclick="openEditModal(\'stock\',\'' + r.batch.id + '\',\'' + r.fridgeId + '\')">Edit</button>' +
       '<button class="delete-link" onclick="deleteEntity(\'stock\',\'' + r.batch.id + '\',\'' + escQ(r.batch.product.name) + '\',\'' + r.fridgeId + '\')">Delete</button>' +
@@ -1695,7 +1695,7 @@ function renderStockTable() {
 // revenue, not waste, so it's tracked separately from Close-out and
 // counted in Sales/COGS on the Profitability tab. Quantity can't exceed
 // what's physically available.
-function recordManualSale(fridgeId, batchId, productName, currentAvailable, channel) {
+function recordManualSale(fridgeId, batchId, productName, currentAvailable, channel, batchManufacturedAt) {
   channel = channel || 'bank_qr';
   const channelLabel = channel === 'vending_machine' ? 'via the vending machine' : 'manually (via the backup bank QR)';
   const input = prompt('How many units of "' + productName + '" were sold ' + channelLabel + '? Up to ' + currentAvailable + ' available.', '1');
@@ -1703,15 +1703,33 @@ function recordManualSale(fridgeId, batchId, productName, currentAvailable, chan
   const quantity = parseInt(input, 10);
   if (isNaN(quantity) || quantity <= 0) { alert('Enter a valid quantity'); return; }
   if (quantity > currentAvailable) { alert('Only ' + currentAvailable + ' unit(s) are available — can\'t record more than that'); return; }
-  api('/admin/fridges/' + fridgeId + '/stock/manual-sale', { method: 'POST', body: JSON.stringify({ batchId, quantity, channel }) })
+
+  // Defaults to the batch's own production day, not today — correcting a
+  // past day's stock is the whole reason this prompt exists. Without it,
+  // a sale recorded today for an older batch always got filed under
+  // today regardless of which day it actually happened, which is why it
+  // was invisible when checking Profitability/Sales/Analytics for the
+  // day it was actually meant to belong to.
+  const defaultDateStr = batchManufacturedAt ? new Date(batchManufacturedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const dateInput = prompt('What date did this sale actually happen? (YYYY-MM-DD)', defaultDateStr);
+  if (dateInput === null) return;
+  if (dateInput && isNaN(new Date(dateInput).getTime())) { alert('That date doesn\'t look valid — use YYYY-MM-DD'); return; }
+  // Noon, not midnight — keeps the date from shifting to the previous/next
+  // calendar day once converted through UTC for storage.
+  const recordedAt = dateInput ? new Date(dateInput + 'T12:00:00').toISOString() : undefined;
+
+  const body = { batchId, quantity, channel };
+  if (recordedAt) body.recordedAt = recordedAt;
+
+  api('/admin/fridges/' + fridgeId + '/stock/manual-sale', { method: 'POST', body: JSON.stringify(body) })
     .then(() => {
       loadFridgeStock();
     })
     .catch((e) => alert(e.message));
 }
 
-function recordVendingSale(fridgeId, batchId, productName, currentAvailable) {
-  recordManualSale(fridgeId, batchId, productName, currentAvailable, 'vending_machine');
+function recordVendingSale(fridgeId, batchId, productName, currentAvailable, batchManufacturedAt) {
+  recordManualSale(fridgeId, batchId, productName, currentAvailable, 'vending_machine', batchManufacturedAt);
 }
 
 function closeOutStock(fridgeId, batchId, productName, currentAvailable) {
@@ -2131,6 +2149,7 @@ const EDIT_CONFIGS = {
     { key: 'totalQuantity', label: 'Total quantity made (correcting this after some has already been allocated to fridges may make "available to assign" negative — that\'s expected, it just means more was already given out than the corrected total)', type: 'number', value: b.totalQuantity },
   ],
   stock: (s) => [
+    { key: 'quantityAllocated', label: 'Allocated here (how much of the batch went to this fridge — correct this if the wrong amount was recorded)', type: 'number', value: s.quantityAllocated },
     { key: 'quantityAvailable', label: 'Available quantity', type: 'number', value: s.quantityAvailable },
     { key: 'quantityWasted', label: 'Wasted quantity (correct this if a physical count after Close-out differs)', type: 'number', value: s.quantityWasted },
   ],
