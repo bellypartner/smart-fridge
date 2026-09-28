@@ -375,65 +375,60 @@
     /* 40mm x 40mm product/batch price label — completely separate from
        .thermal-label above (which stays 50mm x 25mm for the feedback and
        fridge labels printed by the same printQrSheet() function). Sizes
-       here are real, uncompensated physical mm — verified via true-size
-       rendering across many iterations.
-       
-       Code line is 3.6mm, not a literal 4mm (100% over the original
-       2mm) — 4mm truncates even the common ~11-char batch code within
-       the 25mm width; 3.6mm (~80% bigger) is the largest verified size
-       that fits it cleanly. A batch that collided with another one made
-       the same day (code gets a "-2"/"-3" suffix, e.g.
-       "CHISAL-2509-2") can still truncate to an ellipsis at this size —
-       same accepted tradeoff as the original 50x25 label's code line;
-       the QR always encodes the untruncated code regardless, verified
-       decoding correctly even when its own caption is cut short.
+       are real physical mm, verified via true-size rendering.
 
-       QR is 25mm, down from an earlier verified 27mm — freeing the
-       vertical room the bigger code line needed within the same 36mm
-       content-height budget (40mm label, 2mm margin per side).
+       Everything is absolutely positioned inside the 40x40 box, with a
+       2mm margin on every side (36x36mm working area). Why not flex:
+       Mfg, Exp and Qty must be the SAME size as the MRP line (2.6mm), a
+       real physical print showed anything smaller was unreadable. At that
+       size "Mfg 28/12 12:30PM" is ~30mm long — longer than the QR is
+       tall — so the three vertical columns run the full height of the
+       label instead, alongside the QR AND the code/MRP rows where there
+       is free space at the edges. Bottom-to-top text, so each column
+       starts at its bottom and reads upward.
 
-       Mfg and Exp are single combined lines again (date+time together,
-       not date/time split in two) — arranged as two independent
-       side-by-side columns (.b40-date-col) rather than stacked one atop
-       the other, so each gets the QR's full height to itself instead of
-       splitting it, matching a request to keep each on one line while
-       still fitting comfortably. */
+       Trade-offs made to fit that: QR is 23mm (was 25mm), the code line
+       is 3.3mm (was 3.6mm; 3.6mm made the "Exp" column touch the code's
+       first letter — measured, not eyeballed), and the space before
+       AM/PM is dropped ("6:30PM") — with it, the worst case
+       "12:30 PM" string no longer fit the column. A batch code with a
+       collision suffix ("QUICHI-2809-2") can still truncate to an
+       ellipsis on the code line; the QR always encodes the full code. */
     .thermal-label-batch40 {
-      width: 40mm; height: 40mm; box-sizing: border-box;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2mm;
+      position: relative; width: 40mm; height: 40mm; box-sizing: border-box;
       margin: 0 auto;
       page: batch40;
       page-break-after: always; break-after: page;
       font-family: Arial, Helvetica, sans-serif; color: #000;
+      overflow: hidden;
     }
     .thermal-label-batch40 .b40-name {
-      font-size: 2.5mm; font-weight: 800; line-height: 1.05; margin-bottom: 0.5mm;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; width: 100%;
+      position: absolute; top: 2mm; left: 2mm; width: 36mm; text-align: center;
+      font-size: 2.5mm; font-weight: 800; line-height: 1.05;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .thermal-label-batch40 .b40-qr-row { display: flex; flex-direction: row; align-items: center; justify-content: center; width: 100%; }
-    .thermal-label-batch40 .b40-date-cols { display: flex; flex-direction: row; height: 25mm; flex-shrink: 0; }
-    .thermal-label-batch40 .b40-date-col {
-      width: 2.3mm; height: 25mm; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    .thermal-label-batch40 .b40-qr-img { position: absolute; top: 5.4mm; left: 8.5mm; width: 23mm; height: 23mm; }
+    .thermal-label-batch40 .b40-qr-img img { width: 100%; height: 100%; display: block; }
+    .thermal-label-batch40 .b40-col {
+      position: absolute; top: 5.4mm; width: 3mm; height: 31mm;
+      display: flex; align-items: center; justify-content: center;
     }
-    .thermal-label-batch40 .b40-vert-box {
-      width: 4.6mm; height: 25mm; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; overflow: hidden;
-    }
+    .thermal-label-batch40 .b40-col-mfg { left: 2mm; }
+    .thermal-label-batch40 .b40-col-exp { left: 5mm; }
+    .thermal-label-batch40 .b40-col-qty { left: 35mm; }
     .thermal-label-batch40 .b40-vert-text {
       transform: rotate(-90deg); white-space: nowrap;
-      font-size: 1.3mm; font-weight: 700;
+      font-size: 2.6mm; font-weight: 700;
     }
-    .thermal-label-batch40 .b40-vert-box .b40-vert-text { font-size: 1.7mm; }
-    .thermal-label-batch40 .b40-qr-img { width: 25mm; height: 25mm; flex-shrink: 0; }
-    .thermal-label-batch40 .b40-qr-img img { width: 100%; height: 100%; display: block; }
     .thermal-label-batch40 .b40-code {
+      position: absolute; top: 29.6mm; left: 9mm; width: 22mm; text-align: center;
       font-family: 'Courier New', monospace; font-weight: 700;
-      font-size: 3.6mm; line-height: 1.05; margin-top: 0.6mm;
-      width: 25mm; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      font-size: 3.3mm; line-height: 1.05;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .thermal-label-batch40 .b40-price-line {
-      font-size: 2.6mm; font-weight: 800; line-height: 1.1; margin-top: 0.6mm;
+      position: absolute; top: 34.4mm; left: 2mm; width: 36mm; text-align: center;
+      font-size: 2.6mm; font-weight: 800; line-height: 1.1;
     }
 
     .thermal-label-fridge .tl-qr-col { width: 25mm; }
@@ -1962,6 +1957,11 @@ function formatLabelDateShort(dateStr) {
   return dd + '/' + mm;
 }
 
+// "27/08 6:30 PM" -> "27/08 6:30PM": the space costs ~1.5mm, and at the
+// 2.6mm size Mfg/Exp are printed at, the worst-case "12:30 PM" string
+// doesn't fit the column with it.
+function compactTime(s) { return s.replace(/ (AM|PM)$/i, '$1'); }
+
 function formatLabelTime(dateStr) {
   const d = new Date(dateStr);
   let hours = d.getHours();
@@ -1995,14 +1995,10 @@ function printQrSheet() {
     labelHtml =
       '<div class="thermal-label-batch40">' +
         '<div class="b40-name">' + b.product.name + '</div>' +
-        '<div class="b40-qr-row">' +
-          '<div class="b40-date-cols">' +
-            '<div class="b40-date-col"><div class="b40-vert-text">Mfg ' + formatLabelDateTime(b.manufacturedAt) + '</div></div>' +
-            '<div class="b40-date-col"><div class="b40-vert-text">Exp ' + formatLabelDateTime(b.expiresAt) + '</div></div>' +
-          '</div>' +
-          '<div class="b40-qr-img"><img src="' + qrState.dataUrl + '"></div>' +
-          '<div class="b40-vert-box"><div class="b40-vert-text">' + qtyText + '</div></div>' +
-        '</div>' +
+        '<div class="b40-col b40-col-mfg"><div class="b40-vert-text">Mfg ' + compactTime(formatLabelDateTime(b.manufacturedAt)) + '</div></div>' +
+        '<div class="b40-col b40-col-exp"><div class="b40-vert-text">Exp ' + compactTime(formatLabelDateTime(b.expiresAt)) + '</div></div>' +
+        '<div class="b40-qr-img"><img src="' + qrState.dataUrl + '"></div>' +
+        '<div class="b40-col b40-col-qty"><div class="b40-vert-text">' + qtyText + '</div></div>' +
         '<div class="b40-code">' + b.batchCode + '</div>' +
         '<div class="b40-price-line">MRP ₹' + priceValue + '</div>' +
       '</div>';
