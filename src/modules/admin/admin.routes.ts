@@ -254,7 +254,8 @@ router.post(
       req.body.quantity,
       req.user!.sub,
       req.body.note,
-      req.body.channel
+      req.body.channel,
+      req.body.recordedAt ? new Date(req.body.recordedAt) : undefined
     );
     res.status(201).json(sale);
   })

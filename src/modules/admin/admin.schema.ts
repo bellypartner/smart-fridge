@@ -141,8 +141,9 @@ export const updateStockSchema = z.object({
   body: z.object({
     quantityAvailable: z.number().int().min(0).optional(),
     quantityWasted: z.number().int().min(0).optional(),
-  }).refine((data) => data.quantityAvailable !== undefined || data.quantityWasted !== undefined, {
-    message: "Provide at least one of quantityAvailable or quantityWasted",
+    quantityAllocated: z.number().int().min(0).optional(),
+  }).refine((data) => data.quantityAvailable !== undefined || data.quantityWasted !== undefined || data.quantityAllocated !== undefined, {
+    message: "Provide at least one of quantityAvailable, quantityWasted, or quantityAllocated",
   }),
   params: z.object({ fridgeId: z.string().min(1), batchId: z.string().min(1) }),
   query: z.object({}).optional(),
@@ -228,6 +229,7 @@ export const analyticsQuerySchema = z.object({
   query: z.object({
     from: z.string().datetime(),
     to: z.string().datetime(),
+    fridgeId: z.string().optional(),
   }),
 });
 
@@ -237,6 +239,13 @@ export const recordManualSaleSchema = z.object({
     quantity: z.number().int().positive(),
     note: z.string().max(200).optional(),
     channel: z.enum(["bank_qr", "vending_machine"]).optional(),
+    // Lets a correction made today for a past day's stock actually land
+    // on the day it happened, instead of always defaulting to now() —
+    // see admin.service.ts recordManualSale for the full rationale. This
+    // field was missing entirely, which meant it was being silently
+    // stripped by validate() (Zod drops anything not declared in the
+    // schema) no matter what the dashboard sent.
+    recordedAt: z.string().datetime().optional(),
   }),
   params: z.object({ fridgeId: z.string().min(1) }),
   query: z.object({}).optional(),
