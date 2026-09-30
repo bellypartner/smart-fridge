@@ -959,7 +959,37 @@ export const getAnalytics = async (from: Date, to: Date, fridgeId?: string) => {
     .map(([fridgeName, v]) => ({ fridgeName, revenue: v.revenue, orders: v.orders }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  return { dailyRevenue, productBreakdown, peakHours, wasteByProduct, dailyWastage, fridgeComparison };
+  // Expected vs actual revenue by day. Expected = what was ALLOCATED to
+  // a fridge that day, at selling price (not MRP — selling price is
+  // what's actually realized on any real sale, MRP is just the printed
+  // reference price). Scoped to fridgeId the same way everything else
+  // here is: quantityAllocated is inherently per-fridge, so filtering by
+  // fridgeId on stockRows already gives "what this fridge could have
+  // sold," not the batch's full production run.
+  //
+  // Expected is anchored to manufacturedAt (reusing stockRows, already
+  // fetched above for wastage — no extra query); actual reuses the same
+  // day-keyed totals as dailyRevenue above, anchored to paidAt/
+  // recordedAt. These are genuinely different date bases, not just two
+  // views of the same thing — a batch made today can keep selling
+  // tomorrow, right up to expiry — so the two are merged by date rather
+  // than assumed to line up day-for-day.
+  const dailyExpectedMap = new Map<string, number>();
+  for (const row of stockRows) {
+    const day = toIST(row.batch.manufacturedAt).toISOString().slice(0, 10);
+    const expected = row.quantityAllocated * Number(row.batch.product.sellingPrice);
+    dailyExpectedMap.set(day, (dailyExpectedMap.get(day) ?? 0) + expected);
+  }
+  const allDays = new Set([...dailyExpectedMap.keys(), ...dailyMap.keys()]);
+  const dailyExpectedVsActual = Array.from(allDays)
+    .map((date) => ({
+      date,
+      expectedRevenue: dailyExpectedMap.get(date) ?? 0,
+      actualRevenue: dailyMap.get(date)?.revenue ?? 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  return { dailyRevenue, productBreakdown, peakHours, wasteByProduct, dailyWastage, fridgeComparison, dailyExpectedVsActual };
 };
 
 // Sales and Refunds are both anchored to the order's paidAt — a sale and

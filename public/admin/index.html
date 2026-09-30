@@ -249,6 +249,13 @@
   .bar-chart-bar-value { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: 700; color: var(--heading); white-space: nowrap; }
   .bar-chart-label { font-size: 10px; color: var(--body); margin-top: 6px; white-space: nowrap; }
   .bar-chart-empty { color: var(--body); font-size: 13px; padding: 20px 0; }
+  .bar-chart-pair { display: flex; flex-direction: row; align-items: flex-end; gap: 2px; width: 100%; height: 100%; justify-content: center; }
+  .bar-chart-pair .bar-chart-bar { width: 12px; max-width: 12px; }
+  .bar-expected { background: var(--border) !important; border: 1px solid var(--body); }
+  .bar-actual { background: var(--accent) !important; }
+  .bar-chart-legend { display: flex; gap: 16px; font-size: 11px; color: var(--body); margin-top: 8px; }
+  .bar-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .bar-chart-legend .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
   .field-note { font-size: 11px; color: var(--body); margin-top: 4px; }
 
@@ -265,6 +272,13 @@
     border-radius: 8px; font-family: monospace; font-size: 13px; color: var(--primary); word-break: break-all;
   }
   .code-preview .label { display: block; font-family: 'Inter', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--body); margin-bottom: 4px; }
+
+  .expected-revenue-callout {
+    margin-bottom: 14px; padding: 10px 12px; background: #EAF6EB; border: 1px solid var(--accent);
+    border-radius: 8px; font-size: 13px; color: var(--heading);
+  }
+  .expected-revenue-callout b { color: var(--primary); font-size: 15px; }
+  .expected-revenue-callout.hidden { display: none; }
 
   .qr-btn {
     background: var(--white); border: 1.5px solid var(--border); color: var(--primary);
@@ -601,8 +615,8 @@
         <div class="card">
           <h3>All products</h3>
           <table>
-            <thead><tr><th></th><th>SKU</th><th>Name</th><th>Category</th><th>Price</th><th></th></tr></thead>
-            <tbody id="productsTable"><tr class="empty-row"><td colspan="6">No products yet</td></tr></tbody>
+            <thead><tr><th></th><th>SKU</th><th>Name</th><th>Category</th><th>MRP</th><th>Selling price</th><th>Cost</th><th>Shelf life</th><th>GST</th><th></th></tr></thead>
+            <tbody id="productsTable"><tr class="empty-row"><td colspan="10">No products yet</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -615,12 +629,13 @@
       <div class="grid">
         <div class="card">
           <h3>New batch</h3>
+          <div class="expected-revenue-callout hidden" id="batchExpectedRevenue"></div>
           <label>Product</label>
           <select id="batchProduct" onchange="updateBatchCodePreview()"><option value="">Select a product…</option></select>
           <label>Manufactured at</label>
           <input id="batchMfg" type="datetime-local" onchange="updateBatchCodePreview()" />
           <label>Total quantity produced</label>
-          <input id="batchQty" type="number" placeholder="100" />
+          <input id="batchQty" type="number" placeholder="100" oninput="updateBatchCodePreview()" />
           <div class="code-preview" id="batchCodePreview"><span class="label">Batch code (auto-generated)</span>—</div>
           <button class="btn-cta" style="width:100%;margin-top:18px" onclick="createBatch()">Create batch</button>
         </div>
@@ -675,6 +690,7 @@
             <div><label>From</label><input type="date" id="stockRangeFrom" onchange="renderStockTable()" /></div>
             <div><label>To</label><input type="date" id="stockRangeTo" onchange="renderStockTable()" /></div>
           </div>
+          <div class="expected-revenue-callout hidden" id="stockExpectedRevenue"></div>
           <table class="stock-table-desktop">
             <thead><tr><th>Product</th><th>Batch</th><th>Made on</th><th>Allocated here</th><th>Levels</th><th>Sold</th><th>Wasted</th><th></th></tr></thead>
             <tbody id="stockTable"><tr class="empty-row"><td colspan="8">Select a fridge above</td></tr></tbody>
@@ -692,8 +708,8 @@
       <div class="page-sub">Revenue and order activity across all your fridges.</div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total revenue</div><div class="stat-value accent" id="statTotalRevenue">₹0</div></div>
-        <div class="stat-card"><div class="stat-label">Total paid orders</div><div class="stat-value" id="statTotalOrders">0</div></div>
+        <div class="stat-card"><div class="stat-label">Revenue (selected period)</div><div class="stat-value accent" id="statTotalRevenue">₹0</div></div>
+        <div class="stat-card"><div class="stat-label">Paid orders (selected period)</div><div class="stat-value" id="statTotalOrders">0</div></div>
         <div class="stat-card"><div class="stat-label">Today's revenue</div><div class="stat-value accent" id="statTodayRevenue">₹0</div></div>
         <div class="stat-card"><div class="stat-label">Today's orders</div><div class="stat-value" id="statTodayOrders">0</div></div>
       </div>
@@ -985,6 +1001,16 @@
           <button class="qr-btn" onclick="exportAnalyticsAsText()">Export as text</button>
         </div>
         <div id="revenueChart" class="bar-chart"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <h3>Expected vs actual revenue</h3>
+        <div id="expectedVsActualChart" class="bar-chart"></div>
+        <div class="bar-chart-legend">
+          <span><span class="swatch" style="background:var(--border);border:1px solid var(--body)"></span>Expected (allocated × selling price)</span>
+          <span><span class="swatch" style="background:var(--accent)"></span>Actual (paid)</span>
+        </div>
+        <div class="field-note" style="margin-top:8px">Expected is anchored to the day a batch was made; actual to the day it was paid for — a batch made one day can still sell the next, so these won't always line up day-for-day.</div>
       </div>
 
       <div class="card" style="margin-bottom:20px">
@@ -1452,10 +1478,12 @@ function loadProducts() {
     const tbody = document.getElementById('productsTable');
     tbody.innerHTML = products.length ? products.map((p) => (
       '<tr><td>' + (p.imageUrl ? '<img class="thumb" src="' + p.imageUrl + '">' : '') + '</td>' +
-      '<td>' + p.sku + '</td><td>' + p.name + '</td><td>' + (p.category ? p.category.name : '—') + '</td><td>₹' + p.sellingPrice + '</td>' +
+      '<td>' + p.sku + '</td><td>' + p.name + '</td><td>' + (p.category ? p.category.name : '—') + '</td>' +
+      '<td>₹' + p.mrp + '</td><td>₹' + p.sellingPrice + '</td><td>' + (p.costPrice != null ? '₹' + p.costPrice : '—') + '</td>' +
+      '<td>' + p.shelfLifeHours + 'h</td><td>' + p.gstPercent + '%</td>' +
       '<td><button class="qr-btn" onclick="openEditModal(\'product\',\'' + p.id + '\')">Edit</button> ' +
       '<button class="delete-link" onclick="deleteEntity(\'product\',\'' + p.id + '\',\'' + escQ(p.name) + '\')">Delete</button></td></tr>'
-    )).join('') : '<tr class="empty-row"><td colspan="6">No products yet</td></tr>';
+    )).join('') : '<tr class="empty-row"><td colspan="10">No products yet</td></tr>';
 
     const sel = document.getElementById('batchProduct');
     const prev = sel.value;
@@ -1516,9 +1544,23 @@ function updateBatchCodePreview() {
   const productSel = document.getElementById('batchProduct');
   const mfgInput = document.getElementById('batchMfg').value;
   const el = document.getElementById('batchCodePreview');
+  const revenueEl = document.getElementById('batchExpectedRevenue');
 
   const productName = productSel.selectedOptions[0] && productSel.selectedOptions[0].dataset.name;
   const date = mfgInput ? new Date(mfgInput) : new Date();
+
+  // Expected revenue = quantity x selling price, not MRP — selling price
+  // is what's actually realized on a sale whether it comes through the
+  // app, a manual bank-QR entry, or a vending machine; MRP is only ever
+  // the printed reference price, never what's actually charged.
+  const product = productsCache.find((p) => p.id === productSel.value);
+  const qty = parseInt(document.getElementById('batchQty').value, 10);
+  if (product && qty > 0) {
+    revenueEl.innerHTML = 'Expected revenue <b>' + money(qty * Number(product.sellingPrice)) + '</b>';
+    revenueEl.classList.remove('hidden');
+  } else {
+    revenueEl.classList.add('hidden');
+  }
 
   if (!productName) {
     el.innerHTML = '<span class="label">Batch code (auto-generated)</span>—';
@@ -1670,7 +1712,11 @@ function onStockFilterModeChange() {
 // Renders from the already-fetched cache — no extra API call on filter change.
 function renderStockTable() {
   const tbody = document.getElementById('stockTable');
-  if (!document.getElementById('stockFridge').value) { tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Select a fridge above</td></tr>'; return; }
+  if (!document.getElementById('stockFridge').value) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Select a fridge above</td></tr>';
+    document.getElementById('stockExpectedRevenue').classList.add('hidden');
+    return;
+  }
 
   const mode = document.getElementById('stockFilterMode').value;
   const today = new Date();
@@ -1691,6 +1737,19 @@ function renderStockTable() {
     if (toVal) rows = rows.filter((r) => new Date(r.batch.manufacturedAt) <= new Date(toVal + 'T23:59:59.999'));
   }
   rows.sort((a, b) => new Date(b.batch.manufacturedAt) - new Date(a.batch.manufacturedAt));
+
+  // Expected revenue for what's currently shown below — available +
+  // held (not yet sold) at selling price, same basis as the batch-
+  // creation callout. Held is included since that stock is still
+  // expected to convert to a sale (a cart mid-checkout), not lost.
+  const expectedRevenue = rows.reduce((sum, r) => sum + (r.quantityAvailable + r.quantityHeld) * Number(r.batch.product.sellingPrice), 0);
+  const revenueEl = document.getElementById('stockExpectedRevenue');
+  if (rows.length) {
+    revenueEl.innerHTML = 'Expected revenue (shown below) <b>' + money(expectedRevenue) + '</b>';
+    revenueEl.classList.remove('hidden');
+  } else {
+    revenueEl.classList.add('hidden');
+  }
 
   const computed = rows.map((r) => {
     const total = r.quantityAvailable + r.quantityHeld || 1;
@@ -2093,6 +2152,18 @@ function loadItemsSold() {
     tbody.innerHTML = rows.length ? rows.map((p) => (
       '<tr><td>' + p.productName + '</td><td>' + p.quantity + '</td><td>' + money(p.revenue) + '</td></tr>'
     )).join('') : '<tr class="empty-row"><td colspan="3">Nothing sold in this period</td></tr>';
+
+    // "Total revenue" / "Total paid orders" tiles at the top of the tab
+    // reflect this same date range + fridge, not an unrelated all-time
+    // figure — they were previously set from a separate unfiltered call
+    // and never moved when these filters changed.
+    const totals = (data.dailyRevenue || []).reduce((acc, d) => {
+      acc.revenue += d.revenue;
+      acc.billings += d.billings;
+      return acc;
+    }, { revenue: 0, billings: 0 });
+    document.getElementById('statTotalRevenue').textContent = money(totals.revenue);
+    document.getElementById('statTotalOrders').textContent = totals.billings;
   }).catch(() => {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="3">Could not load — try again</td></tr>';
   });
@@ -2100,8 +2171,6 @@ function loadItemsSold() {
 
 function loadSalesStats() {
   api('/admin/orders/stats').then((stats) => {
-    document.getElementById('statTotalRevenue').textContent = money(stats.totalRevenue);
-    document.getElementById('statTotalOrders').textContent = stats.totalOrders;
     document.getElementById('statTodayRevenue').textContent = money(stats.todayRevenue);
     document.getElementById('statTodayOrders').textContent = stats.todayOrders;
 
@@ -2436,6 +2505,26 @@ function ensureDefaultAnalyticsDates() {
   }
 }
 
+// Two bars per day (expected, actual) instead of one — items:
+// [{label, expected, actual}]. Both bars share one scale (the max across
+// BOTH series) so their heights are directly comparable at a glance.
+function renderComparisonChart(containerId, items, formatValue) {
+  const container = document.getElementById(containerId);
+  if (!items.length) { container.innerHTML = '<div class="bar-chart-empty">No data in this period</div>'; return; }
+  const max = Math.max.apply(null, items.flatMap((i) => [i.expected, i.actual]).concat([1]));
+  container.innerHTML = items.map((i) => {
+    const expPct = Math.max((i.expected / max) * 100, i.expected > 0 ? 2 : 0);
+    const actPct = Math.max((i.actual / max) * 100, i.actual > 0 ? 2 : 0);
+    return '<div class="bar-chart-col">' +
+      '<div class="bar-chart-pair">' +
+        '<div class="bar-chart-bar bar-expected" style="height:' + expPct + '%" title="Expected ' + i.label + ': ' + formatValue(i.expected) + '"></div>' +
+        '<div class="bar-chart-bar bar-actual" style="height:' + actPct + '%" title="Actual ' + i.label + ': ' + formatValue(i.actual) + '"></div>' +
+      '</div>' +
+      '<div class="bar-chart-label">' + i.label + '</div>' +
+    '</div>';
+  }).join('');
+}
+
 // Renders a simple proportional-height bar chart into a container — no
 // charting library. items: [{label, value, ...}]. formatValue formats the
 // number shown above each bar and in its hover title; it's also passed
@@ -2491,6 +2580,14 @@ function loadAnalytics() {
       value: d.revenue,
     }));
     renderBarChart('revenueChart', revenueItems, (v) => money(v));
+
+    // Expected vs actual revenue by day — two bars per day, one scale.
+    const expVsActItems = (data.dailyExpectedVsActual || []).map((d) => ({
+      label: new Date(d.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+      expected: d.expectedRevenue,
+      actual: d.actualRevenue,
+    }));
+    renderComparisonChart('expectedVsActualChart', expVsActItems, (v) => money(v));
 
     // Daily wastage — bar height is wasted units, hover title shows cost too.
     const wastageItems = (data.dailyWastage || []).map((d) => ({
